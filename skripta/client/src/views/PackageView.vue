@@ -1,10 +1,16 @@
 <template>
-  <section v-if="loading" class="muted">Loading package…</section>
-  <section v-else-if="error" class="card" style="border-color: var(--bad)">{{ error }}</section>
+  <section v-if="loading" class="skel-wrap">
+    <div class="skeleton" style="height: 34px; width: 50%; margin-bottom: 10px"></div>
+    <div class="skeleton" style="height: 16px; width: 70%; margin-bottom: 18px"></div>
+    <div class="skeleton" style="height: 40px; width: 100%; margin-bottom: 18px; border-radius: 999px"></div>
+    <div class="skeleton" style="height: 120px; width: 100%"></div>
+  </section>
+  <section v-else-if="error" class="card error-card">{{ error }}</section>
 
   <section v-else-if="pkg">
     <header class="head">
       <div>
+        <router-link to="/" class="back-link">← My packages</router-link>
         <h1 class="title">{{ pkg.metadata.video_title }}</h1>
         <p class="muted" style="margin: 2px 0 10px">{{ pkg.metadata.short_description }}</p>
         <div>
@@ -223,17 +229,36 @@ async function remove() {
 </script>
 
 <style scoped>
+.skel-wrap { padding-top: 4px; }
+.back-link {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-display);
+  color: var(--muted);
+  text-decoration: none;
+  margin-bottom: 10px;
+}
+.back-link:hover { color: var(--ink); }
 .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-.title { font-size: 30px; font-weight: 800; }
-.danger { border-color: var(--bad); color: var(--bad); }
+.title { font-size: clamp(24px, 4vw, 30px); font-weight: 800; }
+.danger { border-color: var(--bad); color: var(--bad); flex-shrink: 0; }
 .danger:hover { background: var(--bad-bg); }
+.error-card { border-color: var(--bad); background: var(--bad-bg); }
 
 .tabs {
   display: flex;
-  gap: 4px;
-  margin: 24px 0 22px;
-  border-bottom: 1.5px solid var(--line);
+  gap: 2px;
+  margin: 26px 0 24px;
+  padding: 4px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
   overflow-x: auto;
+  position: sticky;
+  top: 74px;
+  z-index: 5;
+  backdrop-filter: blur(6px);
 }
 .tab {
   background: transparent;
@@ -241,14 +266,16 @@ async function remove() {
   color: var(--muted);
   font-family: var(--font-display);
   font-weight: 700;
-  padding: 10px 14px;
-  border-radius: 0;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 999px;
   white-space: nowrap;
 }
-.tab:hover { color: var(--ink); transform: none; }
+.tab:hover:not(.active) { color: var(--ink); transform: none; background: var(--card); }
 .tab.active {
   color: var(--ink);
-  background: linear-gradient(transparent 62%, var(--hl) 62%, var(--hl) 96%, transparent 96%);
+  background: var(--hl);
+  box-shadow: var(--shadow-sm);
 }
 
 .pane { display: flex; flex-direction: column; gap: 14px; }

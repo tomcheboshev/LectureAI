@@ -1,6 +1,7 @@
 <template>
   <div>
     <div v-if="!finished">
+      <div class="progress-bar"><div class="progress-fill" :style="{ width: ((index + 1) / quiz.length) * 100 + '%' }"></div></div>
       <p class="muted mono">Question {{ index + 1 }} / {{ quiz.length }} · {{ current.difficulty }} · {{ current.concept_tested }}</p>
       <h3 class="q">{{ current.question }}</h3>
       <div class="options">
@@ -82,6 +83,8 @@ function restart() {
 </script>
 
 <style scoped>
+.progress-bar { height: 5px; border-radius: 999px; background: var(--line); overflow: hidden; margin-bottom: 12px; }
+.progress-fill { height: 100%; background: var(--hl); transition: width 0.25s ease; }
 .q { font-size: 20px; margin: 8px 0 16px; }
 .options { display: flex; flex-direction: column; gap: 10px; }
 .option { text-align: left; font-family: var(--font-body); font-weight: 500; }
