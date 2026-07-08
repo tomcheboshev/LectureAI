@@ -28,7 +28,7 @@ app.use((err, _req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/skripta";
+const MONGODB_URI = "mongodb://127.0.0.1:27017/Study";
 
 async function start() {
   // Промена: Сега проверуваме за GEMINI_API_KEY наместо за ANTHROPIC_API_KEY
