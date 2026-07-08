@@ -9,11 +9,17 @@ const router = Router();
 router.post("/generate", async (req, res) => {
   try {
     const { video_title, subject, difficulty, transcript } = req.body;
-    if (!transcript || transcript.trim().length < 50) {
+    if (!transcript || typeof transcript !== "string" || transcript.trim().length < 50) {
       return res.status(400).json({ error: "Transcript is required (min 50 characters)." });
     }
     if (transcript.length > 400000) {
       return res.status(400).json({ error: "Transcript is too long (max 400k characters)." });
+    }
+    if (video_title !== undefined && (typeof video_title !== "string" || video_title.length > 300)) {
+      return res.status(400).json({ error: "video_title must be a string up to 300 characters." });
+    }
+    if (subject !== undefined && (typeof subject !== "string" || subject.length > 150)) {
+      return res.status(400).json({ error: "subject must be a string up to 150 characters." });
     }
 
     const pkg = await generateStudyPackage({ video_title, subject, difficulty, transcript });

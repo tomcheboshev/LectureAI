@@ -6,12 +6,26 @@ import packagesRouter from "./routes/packages.js";
 import chatRouter from "./routes/chat.js";
 
 const app = express();
-app.use(cors());
+// CLIENT_ORIGIN lets production deployments lock CORS to the real frontend;
+// left unset, it stays open for local dev.
+app.use(cors(process.env.CLIENT_ORIGIN ? { origin: process.env.CLIENT_ORIGIN } : {}));
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api/packages", packagesRouter);
 app.use("/api/chat", chatRouter);
+
+app.use((_req, res) => res.status(404).json({ error: "Not found." }));
+
+// Centralized error handler so malformed JSON bodies and unhandled route
+// errors return JSON instead of Express's default HTML error page.
+app.use((err, _req, res, _next) => {
+  console.error("Unhandled error:", err);
+  if (err.type === "entity.parse.failed") {
+    return res.status(400).json({ error: "Invalid JSON body." });
+  }
+  res.status(500).json({ error: "Internal server error." });
+});
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/skripta";

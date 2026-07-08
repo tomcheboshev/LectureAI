@@ -12,9 +12,15 @@ router.post("/:id", async (req, res) => {
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: "messages array is required." });
     }
-    // Basic sanitation: only allow role/content string pairs, cap history length.
+    // Basic sanitation: only allow role/content string pairs, cap length and history.
     const clean = messages
-      .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+      .filter(
+        (m) =>
+          (m.role === "user" || m.role === "assistant") &&
+          typeof m.content === "string" &&
+          m.content.trim().length > 0 &&
+          m.content.length <= 4000
+      )
       .slice(-20);
     if (clean.length === 0 || clean[clean.length - 1].role !== "user") {
       return res.status(400).json({ error: "Last message must be from the user." });
