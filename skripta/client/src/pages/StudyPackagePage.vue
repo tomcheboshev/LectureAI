@@ -9,6 +9,38 @@
     <div class="rounded-2xl border border-danger/30 bg-danger/5 text-danger p-6">{{ error }}</div>
   </div>
 
+  <!-- Generation still in progress (async background job) -->
+  <div v-else-if="pkg && pkg.status === 'failed'" class="max-w-2xl mx-auto px-4 sm:px-6 py-16 text-center">
+    <span class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-danger/10 text-danger mb-5">
+      <ExclamationTriangleIcon class="w-7 h-7" />
+    </span>
+    <h1 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-2">Generation failed</h1>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ pkg.generationError || "Something went wrong while generating this study package." }}</p>
+    <div class="flex items-center justify-center gap-3">
+      <RouterLink to="/new" class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover transition">Try again</RouterLink>
+      <button class="inline-flex items-center gap-2 rounded-xl border-2 border-danger/30 text-danger px-5 py-2.5 text-sm font-semibold hover:bg-danger/10 transition" @click="remove">
+        <TrashIcon class="w-4 h-4" /> Delete
+      </button>
+    </div>
+  </div>
+
+  <div v-else-if="pkg && pkg.status !== 'completed'" class="max-w-lg mx-auto px-4 sm:px-6 py-20 text-center">
+    <div class="relative w-20 h-20 mb-8 mx-auto">
+      <div class="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-secondary to-accent opacity-30 animate-ping"></div>
+      <div class="absolute inset-0 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white animate-float">
+        <SparklesIcon class="w-9 h-9" />
+      </div>
+    </div>
+    <h1 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-2">{{ progressStepLabel }}</h1>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ pkg.metadata?.video_title && pkg.metadata.video_title !== "Generating…" ? pkg.metadata.video_title : "Building your study package…" }}</p>
+    <div class="max-w-xs mx-auto">
+      <div class="h-2 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+        <div class="h-full rounded-full bg-gradient-to-r from-primary to-secondary transition-all duration-700" :style="{ width: pkg.progress + '%' }"></div>
+      </div>
+      <p class="text-xs font-mono text-slate-400 mt-2">{{ pkg.progress }}%</p>
+    </div>
+  </div>
+
   <div v-else-if="pkg" class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
     <RouterLink to="/dashboard" class="inline-flex items-center gap-1 text-sm font-semibold text-slate-500 hover:text-primary transition mb-3">
       <ArrowLeftIcon class="w-4 h-4" /> Dashboard
@@ -46,10 +78,11 @@
           <ArrowDownTrayIcon class="w-4 h-4" /> Export
         </button>
         <Transition name="fade">
-          <div v-if="exportOpen" class="absolute right-0 top-11 z-20 w-44 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark shadow-lg py-1.5">
+          <div v-if="exportOpen" class="absolute right-0 top-11 z-20 w-52 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark shadow-lg py-1.5">
             <button class="w-full text-left px-3.5 py-2 text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition" @click="doExport('md')">Markdown (.md)</button>
             <button class="w-full text-left px-3.5 py-2 text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition" @click="doExport('json')">JSON (.json)</button>
             <button class="w-full text-left px-3.5 py-2 text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition" @click="doExport('print')">Print / Save as PDF</button>
+            <p v-if="!auth.isPro" class="px-3.5 pt-1.5 text-[11px] text-slate-400 border-t border-slate-100 dark:border-border-dark mt-1">Free plan exports include a watermark.</p>
           </div>
         </Transition>
         <button class="inline-flex items-center gap-1.5 rounded-lg border-2 border-danger/30 text-danger px-3.5 py-2 text-sm font-semibold hover:bg-danger/10 transition" @click="confirmDelete = true">
@@ -87,49 +120,62 @@
               <h3 class="font-display font-bold text-lg">Chapters</h3>
               <RegenerateButton :package-id="pkg._id" section="summary" @regenerated="(d) => (pkg.summary = d.summary)" />
             </div>
-            <div class="relative flex flex-col gap-6 pl-6 before:content-[''] before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-slate-200 dark:before:bg-border-dark">
-              <template v-for="(c, i) in pkg.summary" :key="i">
-                <div v-if="c.source_title && c.source_title !== pkg.summary[i - 1]?.source_title" class="relative -ml-6 flex items-center gap-3 py-1">
-                  <span class="badge badge-primary shrink-0">{{ c.source_title }}</span>
-                  <span class="h-px flex-1 bg-slate-200 dark:bg-border-dark"></span>
-                </div>
-                <div class="relative">
-                <span class="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/15"></span>
+            <div class="flex flex-col gap-6">
+              <div v-for="group in summaryGroups" :key="group.title || 'single'">
                 <button
-                  v-if="youtubeVideoId"
-                  class="font-mono text-xs text-primary mb-0.5 underline underline-offset-2 hover:text-primary-hover"
-                  @click="youtubePlayer?.seekTo(c.timestamp)"
+                  v-if="group.title"
+                  type="button"
+                  class="w-full flex items-center gap-3 py-1.5 mb-3 text-left"
+                  @click="toggleGroup(group.title)"
                 >
-                  {{ formatTs(c.timestamp) }} ▶
+                  <ChevronRightIcon class="w-4 h-4 text-slate-400 transition-transform shrink-0" :class="!closedGroups.has(group.title) ? 'rotate-90' : ''" />
+                  <span class="badge badge-primary shrink-0">{{ group.title }}</span>
+                  <span class="h-px flex-1 bg-slate-200 dark:bg-border-dark"></span>
+                  <span class="text-xs text-slate-400 shrink-0">{{ group.chapters.length }} chapter{{ group.chapters.length !== 1 ? "s" : "" }}</span>
                 </button>
-                <p v-else class="font-mono text-xs text-primary mb-0.5">{{ formatTs(c.timestamp) }}</p>
-                <h4 class="font-display font-bold text-slate-900 dark:text-white mb-1.5">{{ c.topic_title }}</h4>
-                <p class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed mb-2" v-html="renderLatexText(c.description)"></p>
 
-                <div v-if="c.formulas?.length" class="flex flex-col gap-2 mb-3">
-                  <div v-for="(f, fi) in c.formulas" :key="fi" class="rounded-xl bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark p-3">
-                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ f.name }}</p>
-                    <div class="text-base text-slate-900 dark:text-white my-1.5" v-html="renderBlockFormula(f.formula)"></div>
-                    <p class="text-xs text-slate-500 dark:text-slate-400" v-html="renderLatexText(f.variables)"></p>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><strong>When to use:</strong> <span v-html="renderLatexText(f.when_to_use)"></span></p>
-                    <p v-if="f.example" class="text-xs text-slate-500 dark:text-slate-400 mt-1"><strong>Example:</strong> <span v-html="renderLatexText(f.example)"></span></p>
+                <div
+                  v-show="!group.title || !closedGroups.has(group.title)"
+                  class="relative flex flex-col gap-6 pl-6 before:content-[''] before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-slate-200 dark:before:bg-border-dark"
+                >
+                  <div v-for="(c, ci) in group.chapters" :key="ci" class="relative">
+                    <span class="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/15"></span>
+                    <button
+                      v-if="youtubeVideoId"
+                      class="font-mono text-xs text-primary mb-0.5 underline underline-offset-2 hover:text-primary-hover"
+                      @click="youtubePlayer?.seekTo(c.timestamp)"
+                    >
+                      {{ formatTs(c.timestamp) }} ▶
+                    </button>
+                    <p v-else class="font-mono text-xs text-primary mb-0.5">{{ formatTs(c.timestamp) }}</p>
+                    <h4 class="font-display font-bold text-slate-900 dark:text-white mb-1.5">{{ c.topic_title }}</h4>
+                    <p class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed mb-2" v-html="renderLatexText(c.description)"></p>
+
+                    <div v-if="c.formulas?.length" class="flex flex-col gap-2 mb-3">
+                      <div v-for="(f, fi) in c.formulas" :key="fi" class="rounded-xl bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark p-3">
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ f.name }}</p>
+                        <div class="text-base text-slate-900 dark:text-white my-1.5" v-html="renderBlockFormula(f.formula)"></div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400" v-html="renderLatexText(f.variables)"></p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><strong>When to use:</strong> <span v-html="renderLatexText(f.when_to_use)"></span></p>
+                        <p v-if="f.example" class="text-xs text-slate-500 dark:text-slate-400 mt-1"><strong>Example:</strong> <span v-html="renderLatexText(f.example)"></span></p>
+                      </div>
+                    </div>
+
+                    <ul v-if="c.algorithms_or_processes?.length" class="list-decimal list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300 mb-2">
+                      <li v-for="x in c.algorithms_or_processes" :key="x">{{ x }}</li>
+                    </ul>
+                    <p v-for="x in c.diagrams_or_tables_explained" :key="x" class="text-xs text-slate-500 dark:text-slate-400 italic mb-1 whitespace-pre-wrap font-mono">📊 {{ x }}</p>
+                    <p v-for="x in c.code_explained" :key="x" class="text-xs font-mono text-slate-500 dark:text-slate-400 mb-1">💻 {{ x }}</p>
+                    <div v-if="c.examples?.length" class="flex flex-col gap-1 mb-2">
+                      <p v-for="x in c.examples" :key="x" class="text-xs text-slate-600 dark:text-slate-300 bg-primary/5 rounded-lg px-3 py-2"><strong>Example:</strong> <span v-html="renderLatexText(x)"></span></p>
+                    </div>
+
+                    <ul class="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 space-y-1">
+                      <li v-for="k in c.key_points" :key="k">{{ k }}</li>
+                    </ul>
                   </div>
                 </div>
-
-                <ul v-if="c.algorithms_or_processes?.length" class="list-decimal list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300 mb-2">
-                  <li v-for="x in c.algorithms_or_processes" :key="x">{{ x }}</li>
-                </ul>
-                <p v-for="x in c.diagrams_or_tables_explained" :key="x" class="text-xs text-slate-500 dark:text-slate-400 italic mb-1 whitespace-pre-wrap font-mono">📊 {{ x }}</p>
-                <p v-for="x in c.code_explained" :key="x" class="text-xs font-mono text-slate-500 dark:text-slate-400 mb-1">💻 {{ x }}</p>
-                <div v-if="c.examples?.length" class="flex flex-col gap-1 mb-2">
-                  <p v-for="x in c.examples" :key="x" class="text-xs text-slate-600 dark:text-slate-300 bg-primary/5 rounded-lg px-3 py-2"><strong>Example:</strong> <span v-html="renderLatexText(x)"></span></p>
-                </div>
-
-                <ul class="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 space-y-1">
-                  <li v-for="k in c.key_points" :key="k">{{ k }}</li>
-                </ul>
-                </div>
-              </template>
+              </div>
             </div>
           </div>
 
@@ -319,17 +365,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import {
   ArrowLeftIcon, TrashIcon, MagnifyingGlassIcon, ChevronRightIcon, ArrowDownTrayIcon,
   FireIcon, CheckCircleIcon, BookOpenIcon, AcademicCapIcon, DocumentTextIcon,
   QueueListIcon, QuestionMarkCircleIcon, Squares2X2Icon, ClipboardDocumentCheckIcon,
   CheckIcon, PencilSquareIcon, MapIcon, ChatBubbleLeftRightIcon,
-  VideoCameraIcon, DocumentIcon,
+  VideoCameraIcon, DocumentIcon, SparklesIcon, ExclamationTriangleIcon,
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
+import { useAuthStore } from "../stores/auth.js";
 import { downloadMarkdown, downloadJson, openPrintView } from "../composables/useExport.js";
 import { renderLatexText, renderBlockFormula } from "../composables/useLatex.js";
 import QuizPlayer from "../components/QuizPlayer.vue";
@@ -344,6 +391,7 @@ import Modal from "../components/ui/Modal.vue";
 const props = defineProps({ id: { type: String, required: true } });
 const router = useRouter();
 const toast = useToastStore();
+const auth = useAuthStore();
 
 const pkg = ref(null);
 const loading = ref(true);
@@ -383,6 +431,31 @@ const orderedSourceFilenames = computed(() =>
   [...(pkg.value?.sources || [])].sort((a, b) => a.order - b.order).map((s) => s.filename)
 );
 
+// Groups consecutive summary chapters by source_title so multi-file
+// packages can show one expandable section per uploaded document. A
+// single-source package has no source_title at all, so it collapses to one
+// untitled group (rendered flat, no toggle).
+const summaryGroups = computed(() => {
+  const chapters = pkg.value?.summary || [];
+  const groups = [];
+  for (const c of chapters) {
+    const last = groups[groups.length - 1];
+    if (last && last.title === (c.source_title || null)) {
+      last.chapters.push(c);
+    } else {
+      groups.push({ title: c.source_title || null, chapters: [c] });
+    }
+  }
+  return groups;
+});
+const closedGroups = ref(new Set());
+function toggleGroup(title) {
+  const next = new Set(closedGroups.value);
+  if (next.has(title)) next.delete(title);
+  else next.add(title);
+  closedGroups.value = next;
+}
+
 const notes = computed(() => pkg.value?.study_notes || {});
 const filteredGlossary = computed(() => {
   const list = [...(pkg.value?.glossary || [])].sort((a, b) => a.term.localeCompare(b.term));
@@ -391,15 +464,44 @@ const filteredGlossary = computed(() => {
   return list.filter((g) => g.term.toLowerCase().includes(q) || g.meaning.toLowerCase().includes(q));
 });
 
+const PROGRESS_STEP_LABELS = {
+  queued: "Queued for generation…",
+  extracting: "Extracting text from your source…",
+  generating: "Generating your study package…",
+  saving: "Saving the results…",
+};
+const progressStepLabel = computed(() => PROGRESS_STEP_LABELS[pkg.value?.status] || "Working on it…");
+
+let pollTimer = null;
+function stopPolling() {
+  clearTimeout(pollTimer);
+  pollTimer = null;
+}
+async function pollStatus() {
+  try {
+    const fresh = await api.getPackage(props.id);
+    pkg.value = fresh;
+    if (fresh.status === "queued" || fresh.status === "extracting" || fresh.status === "generating" || fresh.status === "saving") {
+      pollTimer = setTimeout(pollStatus, 1800);
+    }
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
 onMounted(async () => {
   try {
     pkg.value = await api.getPackage(props.id);
+    if (pkg.value.status && pkg.value.status !== "completed" && pkg.value.status !== "failed") {
+      pollTimer = setTimeout(pollStatus, 1800);
+    }
   } catch (e) {
     error.value = e.message;
   } finally {
     loading.value = false;
   }
 });
+onUnmounted(stopPolling);
 
 function formatTs(sec) {
   const s = Number(sec) || 0;
@@ -415,9 +517,10 @@ function diffTint(d) {
 
 function doExport(format) {
   exportOpen.value = false;
-  if (format === "md") downloadMarkdown(pkg.value);
+  const watermark = !auth.isPro;
+  if (format === "md") downloadMarkdown(pkg.value, { watermark });
   else if (format === "json") downloadJson(pkg.value);
-  else openPrintView(pkg.value);
+  else openPrintView(pkg.value, { watermark });
 }
 
 async function remove() {

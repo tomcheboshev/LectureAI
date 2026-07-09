@@ -90,7 +90,7 @@
         >
           <ArrowUpTrayIcon class="w-7 h-7 text-slate-400" />
           <span class="text-sm text-slate-500 dark:text-slate-400">Drag & drop files here, or click to browse</span>
-          <span class="text-xs text-slate-400">PDF, PPTX, DOCX, TXT, MD, SRT, VTT, PNG, JPG · up to {{ maxFiles }} files</span>
+          <span class="text-xs text-slate-400">PDF, PPTX, DOCX, TXT, MD, SRT, VTT, PNG, JPG · up to {{ maxFiles }} files · max {{ maxFileSizeMB }}MB each</span>
           <input
             type="file"
             multiple
@@ -149,16 +149,15 @@
             <SparklesIcon class="w-9 h-9" />
           </div>
         </div>
-        <h2 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-2">Building your study package…</h2>
-        <p class="text-slate-500 dark:text-slate-400 max-w-sm transition-opacity duration-300">{{ statusMessages[statusIndex] }}</p>
-        <p class="text-xs text-slate-400 mt-4">Usually takes 30–60 seconds</p>
+        <h2 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-2">Setting up your study package…</h2>
+        <p class="text-slate-500 dark:text-slate-400 max-w-sm">Uploading and queuing generation — you'll see live progress on the next page.</p>
       </div>
     </Transition>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref, computed, onUnmounted } from "vue";
+import { reactive, ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import {
   SparklesIcon,
@@ -173,15 +172,17 @@ import {
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
-import { useToastStore } from "../stores/toast.js";
+import { reportApiError } from "../composables/useApiError.js";
+import { useAuthStore } from "../stores/auth.js";
 
 const router = useRouter();
-const toast = useToastStore();
+const auth = useAuthStore();
 const generating = ref(false);
 const error = ref("");
 const dragging = ref(false);
 const mode = ref("text");
-const maxFiles = 10;
+const maxFiles = computed(() => auth.limits?.maxFilesPerPackage || 3);
+const maxFileSizeMB = computed(() => auth.limits?.maxFileSizeMB || 25);
 const selectedFiles = ref([]);
 const uploadProgress = ref(0);
 let fileIdSeq = 0;
@@ -225,42 +226,20 @@ const canSubmit = computed(() => {
   return selectedFiles.value.length > 0;
 });
 
-const statusMessages = [
-  "Reading the source…",
-  "Finding the chapters…",
-  "Writing the study notes…",
-  "Building the quiz and flashcards…",
-  "Preparing the chatbot context…",
-];
-const statusIndex = ref(0);
-let statusTimer = null;
-
-function startStatusRotation() {
-  statusIndex.value = 0;
-  statusTimer = setInterval(() => {
-    statusIndex.value = (statusIndex.value + 1) % statusMessages.length;
-  }, 3000);
-}
-function stopStatusRotation() {
-  clearInterval(statusTimer);
-}
-onUnmounted(stopStatusRotation);
-
 async function submit() {
   error.value = "";
   generating.value = true;
-  startStatusRotation();
   try {
-    let doc;
+    let queued;
     if (mode.value === "text") {
-      doc = await api.generate({
+      queued = await api.generate({
         video_title: form.video_title,
         subject: form.subject,
         difficulty: form.difficulty,
         transcript: form.transcript,
       });
     } else if (mode.value === "youtube") {
-      doc = await api.generateFromYoutube({
+      queued = await api.generateFromYoutube({
         url: form.youtubeUrl,
         video_title: form.video_title || undefined,
         subject: form.subject,
@@ -273,19 +252,17 @@ async function submit() {
       if (form.subject) fd.append("subject", form.subject);
       fd.append("difficulty", form.difficulty);
       uploadProgress.value = 0;
-      doc = await api.generateFromFiles(fd, (evt) => {
+      queued = await api.generateFromFiles(fd, (evt) => {
         if (evt.total) uploadProgress.value = Math.round((evt.loaded / evt.total) * 100);
       });
     }
-    toast.success("Study package generated.");
-    router.push(`/package/${doc._id}`);
+    router.push(`/package/${queued._id}`);
   } catch (e) {
     error.value = e.message;
-    toast.error(e.message);
+    reportApiError(e);
   } finally {
     generating.value = false;
     uploadProgress.value = 0;
-    stopStatusRotation();
   }
 }
 
@@ -302,17 +279,25 @@ function onTextDrop(e) {
 function addFiles(fileList) {
   if (!fileList) return;
   const incoming = Array.from(fileList);
-  const room = maxFiles - selectedFiles.value.length;
+
+  const maxBytes = maxFileSizeMB.value * 1024 * 1024;
+  const tooBig = incoming.filter((f) => f.size > maxBytes);
+  const sized = incoming.filter((f) => f.size <= maxBytes);
+
+  const room = maxFiles.value - selectedFiles.value.length;
   if (room <= 0) {
-    error.value = `You can upload at most ${maxFiles} files at once.`;
+    error.value = `You can upload at most ${maxFiles.value} files at once on your plan.`;
     return;
   }
-  const accepted = incoming.slice(0, room);
+  const accepted = sized.slice(0, room);
   for (const file of accepted) {
     selectedFiles.value.push({ id: ++fileIdSeq, file });
   }
-  if (incoming.length > accepted.length) {
-    error.value = `Only ${room} more file(s) could be added — the ${maxFiles}-file limit was reached.`;
+
+  if (tooBig.length) {
+    error.value = `${tooBig.map((f) => f.name).join(", ")} exceed${tooBig.length === 1 ? "s" : ""} your plan's ${maxFileSizeMB.value}MB per-file limit.`;
+  } else if (sized.length > accepted.length) {
+    error.value = `Only ${room} more file(s) could be added — the ${maxFiles.value}-file limit on your plan was reached.`;
   } else {
     error.value = "";
   }

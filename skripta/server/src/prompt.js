@@ -198,10 +198,12 @@ export function buildUserMessage({ video_title, subject, difficulty, transcript 
 // --- Multi-source input --------------------------------------------------
 
 export const MULTI_SOURCE_INSTRUCTIONS = `
-MULTI-SOURCE HIGHER-ORDER SYNTHESIS RULES:
-You have been provided with multiple source documents. Treat them as an integrated curriculum:
-* "summary": process sources sequentially by tracking the "source_index" (0-indexed) and "source_title". Prioritize extracting worked examples, practical slide problems, and state transition sequences.
-* Unified Knowledge Graph: For all other evaluation arrays (quiz, flashcards, core_concepts, practice_tasks, etc.), synthesize cross-document concepts. Build items that explicitly force the student to solve synthesis problems or trace state transitions that connect ideas across sources.`;
+MULTI-SOURCE INPUT:
+Multiple source documents were provided below, each marked "=== SOURCE N: filename ===" and given in upload order. Treat them as one course, with these rules:
+
+* "summary": process sources in the given order. Tag every chapter with "source_index" (0-based, matching the source order) and "source_title" (the source's meaningful title if it clearly has one, e.g. a slide deck's title slide or a document's heading; otherwise use the source's original filename shown in its "=== SOURCE N: filename ===" marker, without the file extension). Do NOT merge chapters from different sources into one entry — each chapter belongs to exactly one source.
+* Every other section — core_concepts, study_notes, quiz, flashcards, practice_tasks, true_false_questions, short_answer_questions, glossary, learning_objectives, prerequisites, recommended_next_steps, chatbot_context — must synthesize information across ALL sources combined as a single course. Do not duplicate a concept/definition/formula that appears in more than one source; merge them into one entry and, if the sources present it differently, reconcile the explanation.
+* Preserve the logical learning order across sources when it affects sequencing (e.g. prerequisites named in an earlier source shouldn't be re-derived from a later one).`;
 
 export function buildMultiSourceUserMessage({ video_title, subject, difficulty, sources }) {
   const body = sources

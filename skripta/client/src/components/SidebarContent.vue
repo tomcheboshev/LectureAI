@@ -14,7 +14,7 @@
       @click="$emit('navigate')"
     >
       <component :is="item.icon" class="w-5 h-5 shrink-0" />
-      {{ item.label }}
+      {{ t(item.labelKey) }}
     </RouterLink>
   </nav>
 
@@ -29,14 +29,16 @@
 <script setup>
 import { useRoute, RouterLink } from "vue-router";
 import { HomeIcon, PlusCircleIcon, Cog6ToothIcon } from "@heroicons/vue/24/outline";
+import { useI18n } from "../composables/useI18n.js";
 
 defineEmits(["navigate"]);
 const route = useRoute();
+const { t } = useI18n();
 
 const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: HomeIcon },
-  { to: "/new", label: "New package", icon: PlusCircleIcon },
-  { to: "/settings", label: "Settings", icon: Cog6ToothIcon },
+  { to: "/dashboard", labelKey: "dashboard", icon: HomeIcon },
+  { to: "/new", labelKey: "newPackage", icon: PlusCircleIcon },
+  { to: "/settings", labelKey: "settings", icon: Cog6ToothIcon },
 ];
 
 function isActive(item) {
