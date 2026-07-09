@@ -31,6 +31,7 @@ const StudyPackageSchema = new Schema(
     prerequisites: { type: [String], default: [] },
     recommended_next_steps: { type: [String], default: [] },
     chatbot_context: { type: Schema.Types.Mixed, default: {} },
+    chat_history: { type: [Schema.Types.Mixed], default: [] },
     raw_transcript: { type: String, select: false }, // kept for regeneration, not sent to client by default
   },
   { timestamps: true }
