@@ -15,14 +15,29 @@ function renderMath(expr, displayMode) {
   }
 }
 
+// Matches $$...$$ (block, tried first) or $...$ (inline) in one pass.
+const MATH_PATTERN = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;
+
 /**
- * Replaces $$...$$ (block) and $...$ (inline) LaTeX delimiters in
- * already-escaped HTML with KaTeX's rendered output. Reused by the chat
- * markdown renderer so formulas render there too.
+ * Scans RAW (unescaped) text once for $$...$$ / $...$ math segments,
+ * escaping everything else and rendering matches with KaTeX. Doing this
+ * in a single pass over the original text — rather than escaping first
+ * and then running separate block/inline regex passes — is essential:
+ * a second regex pass over text that already contains inserted KaTeX
+ * HTML can match "$" characters *inside* that HTML (e.g. in a KaTeX
+ * error message echoing the source) and mangle the markup.
  */
-export function injectLatex(escapedHtml) {
-  const withBlocks = escapedHtml.replace(/\$\$([\s\S]+?)\$\$/g, (_, expr) => renderMath(expr.trim(), true));
-  return withBlocks.replace(/\$([^$\n]+?)\$/g, (_, expr) => renderMath(expr.trim(), false));
+export function renderLatexSegments(rawText) {
+  let out = "";
+  let lastIndex = 0;
+  for (const match of rawText.matchAll(MATH_PATTERN)) {
+    out += escapeHtml(rawText.slice(lastIndex, match.index));
+    const [full, block, inline] = match;
+    out += block !== undefined ? renderMath(block.trim(), true) : renderMath(inline.trim(), false);
+    lastIndex = match.index + full.length;
+  }
+  out += escapeHtml(rawText.slice(lastIndex));
+  return out;
 }
 
 /**
@@ -32,6 +47,16 @@ export function injectLatex(escapedHtml) {
  */
 export function renderLatexText(text) {
   if (!text) return "";
-  const escaped = escapeHtml(String(text));
-  return injectLatex(escaped).replace(/\n/g, "<br>");
+  return renderLatexSegments(String(text)).replace(/\n/g, "<br>");
+}
+
+/**
+ * Wraps a formula string as block math, stripping any $ delimiters the
+ * source may already include (the AI sometimes wraps formula fields in
+ * $...$ itself despite the field being dedicated to the formula) so it's
+ * never double-wrapped into "$$$...$$$".
+ */
+export function renderBlockFormula(formula) {
+  const trimmed = String(formula || "").trim().replace(/^\${1,2}/, "").replace(/\${1,2}$/, "");
+  return renderMath(trimmed, true);
 }

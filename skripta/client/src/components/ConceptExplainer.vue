@@ -30,7 +30,7 @@
     <TransitionGroup name="fade" tag="div" class="flex flex-col gap-2 mt-2">
       <div v-for="r in results" :key="r.id" class="rounded-lg bg-primary/5 border border-primary/15 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200">
         <p class="text-[11px] font-semibold text-primary uppercase tracking-wide mb-1">{{ r.label }}</p>
-        <p class="whitespace-pre-wrap">{{ r.text }}</p>
+        <p v-html="renderLatexText(r.text)"></p>
       </div>
     </TransitionGroup>
   </div>
@@ -44,6 +44,7 @@ import {
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
+import { renderLatexText } from "../composables/useLatex.js";
 
 const props = defineProps({
   packageId: { type: String, required: true },

@@ -1,4 +1,4 @@
-import { injectLatex } from "./useLatex.js";
+import { renderLatexSegments } from "./useLatex.js";
 
 function escapeHtml(str) {
   return str
@@ -9,14 +9,14 @@ function escapeHtml(str) {
 
 /**
  * Minimal, dependency-free markdown renderer for chat replies.
- * Escapes HTML first, then applies a small safe subset of markdown
- * (bold, italic, inline/block code, bullet & numbered lists, paragraphs).
+ * Escaping happens per-segment (via renderLatexSegments, which also
+ * handles LaTeX) rather than once up front, so math delimiters are
+ * always matched against the original raw text.
  */
 export function renderMarkdown(text) {
   if (!text) return "";
-  const escaped = escapeHtml(text);
 
-  const withCodeBlocks = escaped.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`);
+  const withCodeBlocks = text.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${escapeHtml(code.trim())}</code></pre>`);
 
   const blocks = withCodeBlocks.split(/\n{2,}/).map((block) => {
     if (block.startsWith("<pre>")) return block;
@@ -26,7 +26,7 @@ export function renderMarkdown(text) {
     const isNumberedList = lines.every((l) => /^\s*\d+\.\s+/.test(l));
 
     const inline = (s) =>
-      injectLatex(s)
+      renderLatexSegments(s)
         .replace(/`([^`]+)`/g, "<code>$1</code>")
         .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
         .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
