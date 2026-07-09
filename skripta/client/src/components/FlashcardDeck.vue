@@ -1,38 +1,54 @@
 <template>
-  <div class="deck">
-    <p class="muted mono">Card {{ index + 1 }} / {{ cards.length }} · {{ current.category }}</p>
-    <button class="cardface" :class="{ flipped }" @click="flipped = !flipped" :aria-label="flipped ? 'Show front' : 'Show back'">
-      <div class="inner">
-        <div class="face front">
-          <span class="side-label">FRONT</span>
-          <p>{{ current.front }}</p>
-          <span class="muted hint">tap to flip</span>
+  <div class="max-w-xl mx-auto">
+    <div class="flex items-center justify-between mb-3 text-sm">
+      <p class="font-mono text-slate-500 dark:text-slate-400">Card {{ index + 1 }} / {{ cards.length }} · {{ current.category }}</p>
+      <p class="font-mono text-slate-500 dark:text-slate-400">{{ learned.size }} learned</p>
+    </div>
+
+    <button
+      class="block w-full [perspective:1200px] mb-5"
+      :aria-label="flipped ? 'Show front' : 'Show back'"
+      @click="flipped = !flipped"
+    >
+      <div class="relative w-full min-h-[240px] transition-transform duration-500 [transform-style:preserve-3d]" :class="flipped ? '[transform:rotateY(180deg)]' : ''">
+        <div class="absolute inset-0 [backface-visibility:hidden] rounded-2xl border-2 border-slate-900 dark:border-white/20 bg-white dark:bg-surface-dark shadow-[4px_4px_0_var(--color-primary)] flex flex-col items-center justify-center p-8 text-center">
+          <span class="absolute top-3 left-4 font-mono text-[10px] tracking-widest text-slate-400">FRONT</span>
+          <CheckCircleIcon v-if="learned.has(current.front)" class="absolute top-3 right-4 w-5 h-5 text-success" />
+          <p class="text-lg font-medium text-slate-900 dark:text-white">{{ current.front }}</p>
+          <span class="absolute bottom-3 text-xs text-slate-400">tap to flip</span>
         </div>
-        <div class="face back">
-          <span class="side-label">BACK</span>
-          <p>{{ current.back }}</p>
+        <div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl border-2 border-primary bg-primary/5 dark:bg-primary/10 flex flex-col items-center justify-center p-8 text-center">
+          <span class="absolute top-3 left-4 font-mono text-[10px] tracking-widest text-slate-400">BACK</span>
+          <p class="text-base text-slate-800 dark:text-slate-100">{{ current.back }}</p>
         </div>
       </div>
     </button>
-    <div class="controls">
-      <button class="ghost" @click="move(-1)" :disabled="index === 0">← Prev</button>
-      <button class="ghost" @click="shuffle">Shuffle</button>
-      <button @click="move(1)" :disabled="index === cards.length - 1">Next →</button>
+
+    <div class="flex flex-wrap items-center justify-center gap-2 mb-4">
+      <button class="btn-ghost" :disabled="index === 0" @click="move(-1)">← Prev</button>
+      <button class="btn-ghost" @click="toggleLearned">
+        <CheckCircleIcon class="w-4 h-4" /> {{ learned.has(current.front) ? "Learned" : "Mark as learned" }}
+      </button>
+      <button class="btn-ghost" @click="shuffle"><ArrowPathIcon class="w-4 h-4" /> Shuffle</button>
+      <button class="btn-primary" :disabled="index === cards.length - 1" @click="move(1)">Next →</button>
     </div>
-    <div class="dots">
-      <span v-for="(_, i) in cards" :key="i" class="dot" :class="{ active: i === index }"></span>
+
+    <div class="flex justify-center gap-1.5">
+      <span v-for="(_, i) in cards" :key="i" class="w-1.5 h-1.5 rounded-full transition-all" :class="i === index ? 'bg-primary w-4' : 'bg-slate-300 dark:bg-white/20'"></span>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from "vue";
+import { CheckCircleIcon, ArrowPathIcon } from "@heroicons/vue/24/outline";
 
 const props = defineProps({ flashcards: { type: Array, required: true } });
 
 const order = ref(props.flashcards.map((_, i) => i));
 const index = ref(0);
 const flipped = ref(false);
+const learned = ref(new Set());
 
 const cards = computed(() => order.value.map((i) => props.flashcards[i]));
 const current = computed(() => cards.value[index.value]);
@@ -46,56 +62,28 @@ function shuffle() {
   index.value = 0;
   flipped.value = false;
 }
+function toggleLearned() {
+  const key = current.value.front;
+  learned.value.has(key) ? learned.value.delete(key) : learned.value.add(key);
+  learned.value = new Set(learned.value);
+}
 </script>
 
 <style scoped>
-.deck { max-width: 560px; margin: 0 auto; text-align: center; }
-.cardface {
-  all: unset;
-  cursor: pointer;
-  display: block;
-  width: 100%;
-  perspective: 1200px;
-  margin: 8px 0 18px;
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 600; font-size: 0.8125rem; padding: 0.55rem 0.9rem;
+  border-radius: 0.6rem; border: 1.5px solid rgb(226 232 240);
+  color: inherit; transition: background 0.15s ease;
 }
-.cardface:focus-visible { outline: 3px solid var(--hl); outline-offset: 3px; border-radius: var(--radius); }
-.inner {
-  position: relative;
-  width: 100%;
-  min-height: 220px;
-  transition: transform 0.45s;
-  transform-style: preserve-3d;
+.btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--color-primary) 8%, transparent); border-color: var(--color-primary); }
+.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+:global(html.dark .btn-ghost) { border-color: var(--color-border-dark); }
+.btn-primary {
+  font-weight: 700; font-size: 0.8125rem; padding: 0.55rem 1.1rem;
+  border-radius: 0.6rem; background: var(--color-primary); color: white;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
-.cardface.flipped .inner { transform: rotateY(180deg); }
-.face {
-  position: absolute;
-  inset: 0;
-  backface-visibility: hidden;
-  background: var(--card);
-  border: 1.5px solid var(--ink);
-  border-radius: var(--radius);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 26px;
-  font-size: 17px;
-  box-shadow: 4px 4px 0 var(--hl);
-}
-.face.back { transform: rotateY(180deg); background: var(--hl-soft); }
-.side-label {
-  position: absolute;
-  top: 12px;
-  left: 14px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 0.1em;
-}
-.hint { position: absolute; bottom: 12px; font-size: 12px; }
-.controls { display: flex; gap: 10px; justify-content: center; }
-.dots { display: flex; gap: 6px; justify-content: center; margin-top: 16px; }
-.dot { width: 6px; height: 6px; border-radius: 999px; background: var(--line); transition: background 0.15s ease, transform 0.15s ease; }
-.dot.active { background: var(--hl); transform: scale(1.4); }
-@media (prefers-reduced-motion: reduce) { .inner { transition: none; } }
+.btn-primary:hover:not(:disabled) { background: var(--color-primary-hover); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

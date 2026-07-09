@@ -1,14 +1,14 @@
 <template>
-  <div class="list">
-    <div v-for="(q, i) in questions" :key="i" class="card">
-      <p class="stmt">{{ q.statement }}</p>
-      <div class="row">
-        <button class="ghost" :class="btnClass(i, true)" :disabled="answers[i] !== null" @click="answer(i, true)">True</button>
-        <button class="ghost" :class="btnClass(i, false)" :disabled="answers[i] !== null" @click="answer(i, false)">False</button>
+  <div class="flex flex-col gap-3">
+    <div v-for="(q, i) in questions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+      <p class="font-medium text-slate-900 dark:text-white mb-3">{{ q.statement }}</p>
+      <div class="flex gap-2.5">
+        <button class="flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition" :class="btnClass(i, true)" :disabled="answers[i] !== null" @click="answer(i, true)">True</button>
+        <button class="flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition" :class="btnClass(i, false)" :disabled="answers[i] !== null" @click="answer(i, false)">False</button>
       </div>
-      <p v-if="answers[i] !== null" class="expl" :class="answers[i] === q.answer ? 'ok-text' : 'bad-text'">
+      <p v-if="answers[i] !== null" class="text-sm mt-3" :class="answers[i] === q.answer ? 'text-success' : 'text-danger'">
         <strong>{{ answers[i] === q.answer ? "Correct" : "Wrong" }} — answer is {{ q.answer ? "TRUE" : "FALSE" }}.</strong>
-        {{ q.explanation }}
+        <span class="text-slate-600 dark:text-slate-300"> {{ q.explanation }}</span>
       </p>
     </div>
   </div>
@@ -24,22 +24,10 @@ function answer(i, val) {
   answers.value[i] = val;
 }
 function btnClass(i, val) {
-  if (answers.value[i] === null) return "";
+  if (answers.value[i] === null) return "border-slate-200 dark:border-border-dark hover:border-primary hover:bg-primary/5";
   const correct = props.questions[i].answer;
-  if (val === correct) return "correct";
-  if (val === answers.value[i]) return "wrong";
-  return "dim";
+  if (val === correct) return "border-success bg-success/10 text-success";
+  if (val === answers.value[i]) return "border-danger bg-danger/10 text-danger";
+  return "border-slate-200 dark:border-border-dark opacity-50";
 }
 </script>
-
-<style scoped>
-.list { display: flex; flex-direction: column; gap: 14px; }
-.stmt { font-weight: 500; margin: 0 0 12px; }
-.row { display: flex; gap: 10px; }
-.correct { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
-.wrong { border-color: var(--bad); background: var(--bad-bg); color: var(--bad); }
-.dim { opacity: 0.5; }
-.expl { font-size: 14px; margin: 12px 0 0; }
-.ok-text strong { color: var(--ok); }
-.bad-text strong { color: var(--bad); }
-</style>
