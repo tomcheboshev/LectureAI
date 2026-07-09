@@ -88,6 +88,7 @@ import {
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
+import { useAuthStore } from "../stores/auth.js";
 import { reportApiError } from "../composables/useApiError.js";
 import { downloadMarkdown, downloadJson } from "../composables/useExport.js";
 import Modal from "./ui/Modal.vue";
@@ -95,6 +96,7 @@ import Modal from "./ui/Modal.vue";
 const props = defineProps({ pkg: { type: Object, required: true } });
 const emit = defineEmits(["refresh"]);
 const toast = useToastStore();
+const auth = useAuthStore();
 
 const menuOpen = ref(false);
 const renaming = ref(false);
@@ -151,7 +153,7 @@ async function exportAs(format) {
   menuOpen.value = false;
   try {
     const full = await api.getPackage(props.pkg._id);
-    if (format === "md") downloadMarkdown(full);
+    if (format === "md") downloadMarkdown(full, { watermark: !auth.isPro });
     else downloadJson(full);
   } catch (e) {
     reportApiError(e);

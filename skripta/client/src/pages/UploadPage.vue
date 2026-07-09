@@ -90,7 +90,7 @@
         >
           <ArrowUpTrayIcon class="w-7 h-7 text-slate-400" />
           <span class="text-sm text-slate-500 dark:text-slate-400">Drag & drop files here, or click to browse</span>
-          <span class="text-xs text-slate-400">PDF, PPTX, DOCX, TXT, MD, SRT, VTT, PNG, JPG · up to {{ maxFiles }} files</span>
+          <span class="text-xs text-slate-400">PDF, PPTX, DOCX, TXT, MD, SRT, VTT, PNG, JPG · up to {{ maxFiles }} files · max {{ maxFileSizeMB }}MB each</span>
           <input
             type="file"
             multiple
@@ -173,13 +173,16 @@ import {
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { reportApiError } from "../composables/useApiError.js";
+import { useAuthStore } from "../stores/auth.js";
 
 const router = useRouter();
+const auth = useAuthStore();
 const generating = ref(false);
 const error = ref("");
 const dragging = ref(false);
 const mode = ref("text");
-const maxFiles = 10;
+const maxFiles = computed(() => auth.limits?.maxFilesPerPackage || 3);
+const maxFileSizeMB = computed(() => auth.limits?.maxFileSizeMB || 25);
 const selectedFiles = ref([]);
 const uploadProgress = ref(0);
 let fileIdSeq = 0;
@@ -276,17 +279,25 @@ function onTextDrop(e) {
 function addFiles(fileList) {
   if (!fileList) return;
   const incoming = Array.from(fileList);
-  const room = maxFiles - selectedFiles.value.length;
+
+  const maxBytes = maxFileSizeMB.value * 1024 * 1024;
+  const tooBig = incoming.filter((f) => f.size > maxBytes);
+  const sized = incoming.filter((f) => f.size <= maxBytes);
+
+  const room = maxFiles.value - selectedFiles.value.length;
   if (room <= 0) {
-    error.value = `You can upload at most ${maxFiles} files at once.`;
+    error.value = `You can upload at most ${maxFiles.value} files at once on your plan.`;
     return;
   }
-  const accepted = incoming.slice(0, room);
+  const accepted = sized.slice(0, room);
   for (const file of accepted) {
     selectedFiles.value.push({ id: ++fileIdSeq, file });
   }
-  if (incoming.length > accepted.length) {
-    error.value = `Only ${room} more file(s) could be added — the ${maxFiles}-file limit was reached.`;
+
+  if (tooBig.length) {
+    error.value = `${tooBig.map((f) => f.name).join(", ")} exceed${tooBig.length === 1 ? "s" : ""} your plan's ${maxFileSizeMB.value}MB per-file limit.`;
+  } else if (sized.length > accepted.length) {
+    error.value = `Only ${room} more file(s) could be added — the ${maxFiles.value}-file limit on your plan was reached.`;
   } else {
     error.value = "";
   }

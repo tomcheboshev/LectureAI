@@ -282,7 +282,7 @@ export const MULTI_SOURCE_INSTRUCTIONS = `
 MULTI-SOURCE INPUT:
 Multiple source documents were provided below, each marked "=== SOURCE N: filename ===" and given in upload order. Treat them as one course, with these rules:
 
-* "summary": process sources in the given order. Tag every chapter with "source_index" (0-based, matching the source order) and "source_title" (the source's meaningful title if it has one, e.g. a slide deck's title slide; otherwise "Lecture N" where N is source_index + 1, 1-based). Do NOT merge chapters from different sources into one entry — each chapter belongs to exactly one source.
+* "summary": process sources in the given order. Tag every chapter with "source_index" (0-based, matching the source order) and "source_title" (the source's meaningful title if it clearly has one, e.g. a slide deck's title slide or a document's heading; otherwise use the source's original filename shown in its "=== SOURCE N: filename ===" marker, without the file extension). Do NOT merge chapters from different sources into one entry — each chapter belongs to exactly one source.
 * Every other section — core_concepts, study_notes, quiz, flashcards, practice_tasks, true_false_questions, short_answer_questions, glossary, learning_objectives, prerequisites, recommended_next_steps, chatbot_context — must synthesize information across ALL sources combined as a single course. Do not duplicate a concept/definition/formula that appears in more than one source; merge them into one entry and, if the sources present it differently, reconcile the explanation.
 * Preserve the logical learning order across sources when it affects sequencing (e.g. prerequisites named in an earlier source shouldn't be re-derived from a later one).`;
 

@@ -14,7 +14,7 @@ function slug(title) {
   return (title || "study-package").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-export function toMarkdown(pkg) {
+export function toMarkdown(pkg, { watermark = false } = {}) {
   const lines = [];
   const m = pkg.metadata || {};
   lines.push(`# ${m.video_title || "Untitled lecture"}`, "");
@@ -69,11 +69,15 @@ export function toMarkdown(pkg) {
     }
   }
 
+  if (watermark) {
+    lines.push("---", "", "_Generated with LectureAI (Free plan) — upgrade to Pro to export without this watermark._");
+  }
+
   return lines.join("\n");
 }
 
-export function downloadMarkdown(pkg) {
-  download(`${slug(pkg.metadata?.video_title)}.md`, toMarkdown(pkg), "text/markdown");
+export function downloadMarkdown(pkg, { watermark = false } = {}) {
+  download(`${slug(pkg.metadata?.video_title)}.md`, toMarkdown(pkg, { watermark }), "text/markdown");
 }
 
 export function downloadJson(pkg) {
@@ -84,7 +88,7 @@ function esc(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-export function openPrintView(pkg) {
+export function openPrintView(pkg, { watermark = false } = {}) {
   const m = pkg.metadata || {};
   const win = window.open("", "_blank");
   if (!win) return;
@@ -129,6 +133,7 @@ export function openPrintView(pkg) {
     ${glossary ? `<h2>Glossary</h2><ul>${glossary}</ul>` : ""}
     ${quiz ? `<h2>Quiz</h2>${quiz}` : ""}
     ${flashcards ? `<h2>Flashcards</h2><ul>${flashcards}</ul>` : ""}
+    ${watermark ? `<p style="margin-top:40px;padding-top:12px;border-top:1px solid #ddd;color:#999;font-size:12px;">Generated with LectureAI (Free plan) — upgrade to Pro to export without this watermark.</p>` : ""}
     </body></html>`);
   win.document.close();
   win.focus();

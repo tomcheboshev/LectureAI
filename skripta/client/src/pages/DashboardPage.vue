@@ -45,8 +45,8 @@
       </div>
     </div>
 
-    <div v-if="!loading && !error && packages.length > 0" class="flex items-center gap-3 mb-6">
-      <div class="relative flex-1 max-w-sm">
+    <div v-if="!loading && !error && packages.length > 0" class="flex flex-wrap items-center gap-3 mb-6">
+      <div class="relative flex-1 min-w-[180px] max-w-sm">
         <MagnifyingGlassIcon class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
           v-model="query"
@@ -54,7 +54,23 @@
           class="w-full rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark pl-9 pr-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"
         />
       </div>
-      <span class="text-xs font-mono text-slate-400 whitespace-nowrap">{{ filtered.length }} shown</span>
+      <select
+        v-model="subjectFilter"
+        class="rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"
+      >
+        <option value="">All subjects</option>
+        <option v-for="s in subjects" :key="s" :value="s">{{ s }}</option>
+      </select>
+      <select
+        v-model="statusFilter"
+        class="rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"
+      >
+        <option value="">All statuses</option>
+        <option value="completed">Ready</option>
+        <option value="generating">Generating</option>
+        <option value="failed">Failed</option>
+      </select>
+      <span class="text-xs font-mono text-slate-400 whitespace-nowrap ml-auto">{{ filtered.length }} shown</span>
     </div>
 
     <div v-if="loading" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -109,6 +125,8 @@ const packages = ref([]);
 const loading = ref(true);
 const error = ref("");
 const query = ref("");
+const subjectFilter = ref("");
+const statusFilter = ref("");
 
 const packageUsagePct = computed(() => {
   const limit = auth.limits?.maxPackages;
@@ -125,14 +143,22 @@ function formatStorage(chars) {
 
 const totalQuiz = computed(() => packages.value.reduce((sum, p) => sum + (p.quizCount || 0), 0));
 const totalFlashcards = computed(() => packages.value.reduce((sum, p) => sum + (p.flashcardCount || 0), 0));
-const subjectCount = computed(() => new Set(packages.value.map((p) => p.metadata?.subject).filter(Boolean)).size);
+const subjects = computed(() => [...new Set(packages.value.map((p) => p.metadata?.subject).filter(Boolean))].sort());
+const subjectCount = computed(() => subjects.value.length);
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
-  if (!q) return packages.value;
-  return packages.value.filter((p) =>
-    [p.metadata?.video_title, p.metadata?.subject].some((f) => f?.toLowerCase().includes(q))
-  );
+  return packages.value.filter((p) => {
+    if (subjectFilter.value && p.metadata?.subject !== subjectFilter.value) return false;
+    if (statusFilter.value) {
+      const status = p.status || "completed";
+      if (statusFilter.value === "generating" ? status === "completed" || status === "failed" : status !== statusFilter.value) {
+        return false;
+      }
+    }
+    if (!q) return true;
+    return [p.metadata?.video_title, p.metadata?.subject].some((f) => f?.toLowerCase().includes(q));
+  });
 });
 
 async function reload() {
