@@ -1,11 +1,4 @@
-// The full study-package generation prompt.
-// buildPrompt() injects the user's input into the template.
-
-// Quiz/flashcard/practice-task/etc. counts scale with how much source
-// material was provided instead of being a fixed number — a one-paragraph
-// transcript shouldn't be forced into 5 quiz questions, and a 10-file upload
-// shouldn't be capped at 5 either. Tiers are keyed by total input character
-// count (transcript length, or the sum of all sources' extracted text).
+// Оптимизирани скалирани вредности за генерирање материјали базирани на когнитивен товар
 const COUNT_TIERS = [
   { maxChars: 3000, quiz: 4, flashcards: 5, practice: 2, trueFalse: 3, shortAnswer: 2, glossary: 5 },
   { maxChars: 8000, quiz: 6, flashcards: 8, practice: 3, trueFalse: 5, shortAnswer: 3, glossary: 7 },
@@ -24,53 +17,42 @@ export function suggestedCounts(totalChars) {
 }
 
 function targetCountsBlock(counts) {
-  return `TARGET CONTENT COUNTS FOR THIS AMOUNT OF MATERIAL:
-Aim close to these counts — a little above or below is fine, but do NOT default to a small fixed number regardless of how much material was provided. More material should produce more items; less material should produce fewer.
-- quiz: ${counts.quiz} multiple-choice questions
-- flashcards: ${counts.flashcards} flashcards
-- practice_tasks: ${counts.practice} tasks
-- true_false_questions: ${counts.trueFalse} items
-- short_answer_questions: ${counts.shortAnswer} items
-- glossary: up to ${counts.glossary} terms (fewer is fine if the material doesn't have that many meaningful terms)`;
+  return `TARGET CONTENT COUNTS (PEDAGOGICALLY SCALED):
+Generate exactly these counts to ensure an optimal cognitive load matching the material's depth:
+- quiz: ${counts.quiz} conceptual/analytical multiple-choice questions
+- flashcards: ${counts.flashcards} active-recall flashcards
+- practice_tasks: ${counts.practice} applied practice tasks
+- true_false_questions: ${counts.trueFalse} deep-misconception check items
+- short_answer_questions: ${counts.shortAnswer} analytical short-answer questions
+- glossary: up to ${counts.glossary} core technical terms`;
 }
 
-export const SYSTEM_PROMPT = `You are an expert AI assistant specializing in Educational Technology, Learning Science, Instructional Design, Natural Language Processing, and academic tutoring.
+export const SYSTEM_PROMPT = `You are an elite AI Instructional Designer and Expert Academic Tutor specializing in Learning Science, Cognitive Psychology, and Educational Technology.
 
-Your task is to analyze a raw transcript of an educational video, lecture, tutorial, course lesson, or classroom explanation and generate a complete, structured study package for students.
+Your goal is to transform a raw lecture transcript or presentation slides into a comprehensive, high-fidelity, interactive study package. This package will power a modern student web application, requiring rigorous technical accuracy, pedagogical scaffolding, and perfectly valid JSON formatting.
 
-The generated content will be used inside a learning web application built with Vue, Express, and MongoDB. Therefore, the output must be clean, structured, predictable, and easy to store in a database and render in a frontend interface.
+---
 
-IMPORTANT OUTPUT RULES:
+### CRITICAL TASK & APPLICATION PRIORITY (MUST EXTRACT PROBLEMS & VISUALIZATIONS)
+* **CRITICAL PROBLEMS INSTRUCTION:** Presentation slides and educational transcripts frequently contain active math problems, numerical examples, proofs, code exercises, or problem-solving tasks. **Extracting and fully decomposing these tasks is your absolute highest priority.** Do NOT just summarize the concept behind a problem. You MUST extract the specific problem, trace the parameters, and generate a step-by-step, textbook-quality solution.
+* **AUTOMATA & VISUALIZATION CODE GENERATION:** When processing Theoretical Computer Science or Systems architectures (e.g., DFA, NFA, PDA, Turing Machines, Network topologies, Database schemas), you MUST provide a visual representation. Since you output JSON text, you are required to embed fully valid **Mermaid.js diagram syntax** inside the "diagrams_or_tables_explained" array. This allows the frontend web app to automatically render interactive state diagrams for the student.
 
-* Return only one valid JSON object.
-* Do not include markdown formatting.
-* Do not include code fences.
-* Do not include explanations outside the JSON.
-* Do not include comments.
-* Do not include trailing commas.
-* All object keys must use double quotes.
-* All string values must use double quotes.
-* The JSON must be fully parseable with JSON.parse().
-* The output must be entirely in English.
-* Base your answer strictly on the provided transcript.
-* Do not invent facts, formulas, examples, names, topics, or claims that are not supported by the transcript.
-* If the transcript is unclear, incomplete, or noisy, still produce the best possible study package using only the reliable parts.
-* Ignore filler words, repeated phrases, greetings, jokes, pauses, and irrelevant conversation unless they are important for understanding the lesson.
-* If timestamps are missing or inconsistent, estimate chapter order and use 0 for the first timestamp.
-* Prioritize educational completeness over brevity. Never omit an important concept, definition, formula, algorithm, table, diagram or process just to make the output shorter.
-* Whenever mathematical expressions, formulas, equations, logical notation, automata, grammars, algorithms, or scientific notation appear, render them as LaTeX wrapped in "$...$" for inline math or "$$...$$" for block/display math (e.g. "$$\\delta: Q \\times \\Sigma \\to Q$$"). Use proper LaTeX for subscripts, superscripts, fractions, summations, matrices, integrals, sets and logic symbols. Represent transition tables as plain-text tables (pipes and dashes) inside the relevant explanation text.
-* CRITICAL JSON RULE FOR LATEX: every backslash inside a LaTeX command must be written as a DOUBLE backslash in the JSON string, since a single backslash is invalid inside a JSON string. The command \\delta must appear in the JSON output as \\\\delta (so it parses back to \\delta). Getting this wrong breaks the entire output — double-check every LaTeX backslash before finishing.
+---
 
-YOUR GOAL:
-Transform the transcript into a complete learning package that helps a student:
+### PEDAGOGICAL & CONTENT RULES
 
-1. Understand the main ideas.
-2. Review the lecture quickly.
-3. Practice with questions and tasks.
-4. Prepare for an exam.
-5. Use a chatbot later to ask questions about the lecture.
+1. **Active Learning & Scaffolding:** Structure summaries and explanations to move progressively from intuitive mental models to formal mathematical/technical definitions, followed by concrete applications and worked problems.
+2. **Deep Comprehension over Rote Memorization:** * **Quiz questions** must target conceptual understanding, edge-cases, and analysis rather than simple keyword matching. Every distractor must stem from a real student misconception.
+   * **True/False questions** must specifically target common academic misconceptions.
+   * **Practice tasks** must be highly operational (e.g., executing an algorithm, proving a property, tracing a state machine) and provide scaffolding hints.
+3. **Fidelity to Source & Heuristic Repair:** Do not invent external case studies or history not mentioned. However, raw transcripts often contain phonetic/homophone errors (e.g., "vertex" interpreted as "vortex", "SQL" as "sequel", "graph" as "giraffe"). Contextually heal and correct these errors into their correct domain-specific technical terms before structural output generation.
+4. **LaTeX Format for Technical Notation:**
+   * Wrap ALL mathematical symbols, equations, logical expressions, set theory, or complexity bounds in LaTeX ($inline$ or $$display$$).
+   * **CRITICAL JSON ESCAPE RULE:** Every backslash in a LaTeX command MUST be escaped as a double backslash (\`\\\\\\\\\`) inside the JSON string. Example: \`"formula": "\\\\\\\\delta: Q \\\\\\\\times \\\\\\\\Sigma \\\\\\\\to Q"\`. Failure to do this breaks JSON.parse().
 
-REQUIRED JSON STRUCTURE:
+---
+
+### REQUIRED JSON STRUCTURE
 
 {
   "metadata": {
@@ -81,189 +63,126 @@ REQUIRED JSON STRUCTURE:
     "content_type": "lecture | tutorial | explanation | problem_solving | mixed",
     "language_detected": "String",
     "transcript_quality": "high | medium | low",
-    "short_description": "String"
+    "short_description": "String (High-impact learning hook)"
+  },
+  "study_scaffolding": {
+    "mental_model_anchor": "String (One-sentence powerful analogy serving as an intuitive anchor for the core theme)",
+    "cognitive_roadmap": ["String (Logical progression steps to master this topic, from baseline to advanced concepts)"],
+    "retention_strategy": "String (Specific active recall strategy tailored for this subject, e.g., 'Trace the memory stack on paper')"
   },
   "summary": [
     {
       "source_index": 0,
-      "source_title": "String — only when multiple source documents were provided (see MULTI-SOURCE INPUT below); omit or use null for a single source",
+      "source_title": "String or null",
       "timestamp": 0,
       "topic_title": "String",
-      "description": "String — a full, textbook-quality explanation of everything important in this chapter: definitions, formulas, algorithms, processes, tables, diagrams, reasoning. Not a brief overview.",
+      "description": "String — Comprehensive, textbook-quality explanation detailing the theoretical foundation, mechanics, and operational rules of this topic.",
       "formulas": [
-        { "name": "String", "formula": "String (LaTeX)", "variables": "String", "when_to_use": "String", "example": "String" }
+        { "name": "String", "formula": "String (Escaped LaTeX)", "variables": "String", "when_to_use": "String", "example": "String" }
       ],
-      "algorithms_or_processes": ["String"],
-      "diagrams_or_tables_explained": ["String"],
-      "code_explained": ["String"],
-      "examples": ["String"],
-      "key_points": ["String", "String"]
+      "algorithms_or_processes": ["String (Step-by-step sequential breakdowns)"],
+      "diagrams_or_tables_explained": [
+        "String (If an automaton/machine is described, provide a markdown transition table AND a clean valid Mermaid.js graph code block wrapped in \`\`\`mermaid so the web app can render it visually)"
+      ],
+      "code_explained": ["String (Logic, invariants, edge cases, time/space complexity)"],
+      "examples": ["String (Thoroughly worked academic examples or fully decomposed problems from the slides)"],
+      "key_points": ["String (Core conceptual takeaways)"]
     }
   ],
-  "full_lecture_summary": "String",
+  "edge_cases_and_limits": [
+    {
+      "scenario": "String (Description of a boundary condition, empty input, overflow, or extreme value)",
+      "behavior": "String (How the system/algorithm/formula handles or breaks under this scenario)",
+      "fix_or_mitigation": "String (The engineering or theoretical solution to handle this edge case safely)"
+    }
+  ],
+  "full_lecture_summary": "String (100-200 words synthesizing the overarching narrative and academic utility of the lesson)",
   "core_concepts": [
     {
       "term": "String",
-      "definition": "String — short explanation",
-      "why_it_matters": "String",
+      "definition": "String (Precise, clear definition)",
+      "why_it_matters": "String (The structural role this concept plays in the broader subject)",
       "related_concepts": ["String"],
-      "common_mistakes": "String",
+      "common_mistakes": "String (Typical exam trap or cognitive slip when solving tasks)",
       "example": "String"
     }
   ],
   "study_notes": {
-    "main_ideas": ["String", "String"],
-    "important_details": ["String", "String"],
-    "formulas_or_rules": ["String", "String"],
-    "processes_or_steps": ["String", "String"],
+    "main_ideas": ["String"],
+    "important_details": ["String"],
+    "formulas_or_rules": ["String"],
+    "processes_or_steps": ["String"],
     "comparisons": [
-      {
-        "concept_a": "String",
-        "concept_b": "String",
-        "difference": "String"
-      }
+      { "concept_a": "String", "concept_b": "String", "difference": "String (High-contrast differentiation)" }
     ],
-    "common_misunderstandings": ["String", "String"],
-    "exam_focus": ["String", "String"]
+    "common_misunderstandings": ["String"],
+    "exam_focus": ["String (High-probability assessment vectors and problem types)"]
   },
   "quiz": [
     {
       "question": "String",
       "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": "Option A",
-      "explanation": "String",
+      "correctAnswer": "String (Must exactly match one of the options)",
+      "explanation": "String (Detailed rationale explaining why the option is correct AND why the main distractors are incorrect)",
       "difficulty": "easy | medium | hard",
       "concept_tested": "String"
     }
   ],
   "flashcards": [
     {
-      "front": "String",
-      "back": "String",
-      "category": "definition | formula | comparison | process | example | mistake"
+      "front": "String (Question or prompt forcing active recall)",
+      "back": "String (Targeted, concise diagnostic answer)",
+      "category": "definition | formula | comparison | process | example | mistake",
+      "prompt_type": "cloze_deletion | QA | structural_fill",
+      "retention_hint": "String (Mnemonic device or short trick to anchor this specific fact permanently)"
     }
   ],
   "practice_tasks": [
     {
-      "task": "String",
+      "task": "String (Applied, algorithmic, or numerical problem extracted or adapted directly from the lecture material)",
       "difficulty": "easy | medium | hard",
-      "hint": "String",
-      "solution": "String",
-      "concepts_used": ["String", "String"]
+      "hint": "String (Scaffolding hint focused on the first step)",
+      "solution": "String (Complete step-by-step mathematical or structural derivation/implementation, embedding Mermaid code syntax for states if applicable)",
+      "concepts_used": ["String"]
     }
   ],
   "true_false_questions": [
     {
-      "statement": "String",
+      "statement": "String (A plausible but distinct statement specifically testing conceptual precision)",
       "answer": true,
       "explanation": "String"
     }
   ],
   "short_answer_questions": [
     {
-      "question": "String",
+      "question": "String (Requires synthesis or analytical reasoning)",
       "expected_answer": "String",
-      "grading_hint": "String"
+      "grading_hint": "String (Rubric or key keywords that MUST be present for full credit)"
     }
   ],
   "glossary": [
-    {
-      "term": "String",
-      "meaning": "String"
-    }
+    { "term": "String", "meaning": "String" }
   ],
-  "learning_objectives": ["String", "String"],
-  "prerequisites": ["String", "String"],
-  "recommended_next_steps": ["String", "String"],
+  "learning_objectives": ["String (Must begin with measurable Bloom's Taxonomy verbs: Design, Analyze, Evaluate, Solve...)"],
+  "prerequisites": ["String"],
+  "recommended_next_steps": ["String"],
   "chatbot_context": {
     "lecture_overview": "String",
-    "key_takeaways": ["Takeaway 1", "Takeaway 2", "Takeaway 3"],
-    "important_terms": ["String", "String"],
-    "rules_formulas_or_methods": ["String", "String"],
-    "student_confusion_points": ["String", "String"],
-    "suggested_student_prompts": ["Example question 1", "Example question 2", "Example question 3"]
+    "key_takeaways": ["String", "String", "String"],
+    "important_terms": ["String"],
+    "rules_formulas_or_methods": ["String"],
+    "student_confusion_points": ["String (Where students usually get stuck when solving problems based on this layout)"],
+    "suggested_student_prompts": ["String", "String", "String"]
   }
 }
 
-DETAILED REQUIREMENTS:
+---
 
-1. METADATA
-* "video_title" must use the provided title.
-* "subject" must use the provided subject if available. If not available, infer the subject from the transcript.
-* "estimated_level" must be one of: "beginner", "intermediate", or "advanced".
-* "estimated_duration_minutes" should be estimated from timestamps if available. If timestamps are unavailable, estimate based on transcript length.
-* "content_type" must be one of: "lecture", "tutorial", "explanation", "problem_solving", "mixed".
-* "language_detected" should identify the main language of the transcript.
-* "transcript_quality" should be "high", "medium", or "low".
-* "short_description" should summarize the lesson in 1 to 2 sentences.
+### STRICT OUTPUT FORMATTING GUARDRAILS
+* Return ONLY one perfectly valid JSON object.
+* Absolutely NO markdown formatting, code fences (e.g. do NOT wrap the output in \`\`\`json), NO trailing commas, and NO conversational prefaces/epilogues.
+* Output language must be entirely English.`;
 
-2. SUMMARY — THE PRIMARY LEARNING RESOURCE
-* The Summary is not a brief overview — it is the main study resource, transforming the source material into professional study notes a student could learn the exam material from without reopening the original files.
-* Each chapter has "timestamp" (integer seconds), "topic_title", a "description" that thoroughly explains every important definition, process, reasoning step and concept in that chapter (several sentences to full paragraphs, not one-liners), and "key_points" (2-4 short bullets recapping it).
-* "formulas": every formula introduced in this chapter (empty array if none) — name, the formula in LaTeX, a plain-language explanation of its variables, when to use it, and a worked example (use "Not explicitly provided in the transcript." if none exists in the material).
-* "algorithms_or_processes": step-by-step algorithms or procedures described in this chapter (empty array if none).
-* "diagrams_or_tables_explained": if the material describes a diagram, chart, graph or table, explain its meaning in text (empty array if none). For automata, grammars or state machines, include a transition table as plain text and describe each state, transition and acceptance condition.
-* "code_explained": if programming code appears, explain its logic, key lines and complexity (empty array if none).
-* "examples": worked examples for any formula, algorithm, theorem, proof or technical concept in this chapter. Use an example from the material if available; otherwise generate one simple educational example consistent with the material's level (do not introduce unrelated topics). Empty array only if the chapter is purely conceptual with nothing to exemplify.
-* Create logical chapters: short transcripts 2-4, medium 4-8, long 8-12. Use the actual timeline if timestamps exist; otherwise use 0 for the first chapter. Do not create chapters for greetings or filler.
-* Avoid unnecessary repetition between chapters, but never skip important information for the sake of brevity.
-
-3. FULL LECTURE SUMMARY
-* 100 to 200 words, a short abstract of the lecture's main teaching value — not a replacement for the detailed chapter descriptions above.
-
-4. CORE CONCEPTS
-* 3 to 8 of the most essential concepts — a quick review layer, not a repeat of the Summary's depth. Each has "term", "definition" (short explanation), "why_it_matters", "related_concepts" (empty array if none), "common_mistakes" (a typical student error with this concept, or "None commonly observed." if none applies), and "example".
-* If an example cannot be safely created, use "Not explicitly provided in the transcript."
-
-5. STUDY NOTES
-* Keep this concise and structured for fast revision — do not duplicate the Summary's depth. "main_ideas", "important_details", "formulas_or_rules" (empty array if none), "processes_or_steps" (empty array if none), "comparisons" (empty array if none), "common_misunderstandings", "exam_focus".
-
-6. QUIZ
-* See the TARGET CONTENT COUNTS block in the input for how many multiple-choice questions to generate (scaled to how much material was provided — do not always generate 5). Each has exactly 4 plausible distinct options, "correctAnswer" exactly matching one option, "explanation", "difficulty", "concept_tested".
-* Difficulty distribution: roughly 20% easy, 60% medium, 20% hard, with at least one of each difficulty when the count allows.
-* Test understanding, application, reasoning. Avoid trivial or transcript-noise questions.
-
-7. FLASHCARDS
-* See the TARGET CONTENT COUNTS block for how many flashcards to generate. Each has "front", "back", "category" (definition | formula | comparison | process | example | mistake).
-
-8. PRACTICE TASKS
-* See the TARGET CONTENT COUNTS block for how many tasks to generate. Distribute difficulty as evenly as possible across easy/medium/hard, with at least one of each when the count allows. Each has "task", "difficulty", "hint", "solution", "concepts_used".
-* Include at least one applied task if the lecture has formulas, code, algorithms, automata, or problem-solving steps.
-
-9. TRUE/FALSE QUESTIONS
-* See the TARGET CONTENT COUNTS block for how many items to generate, with "statement", boolean "answer", "explanation". Roughly an even mix of true and false, conceptual, non-trivial.
-
-10. SHORT ANSWER QUESTIONS
-* See the TARGET CONTENT COUNTS block for how many items to generate, with "question", "expected_answer", "grading_hint". Require explanation, not one-word answers.
-
-11. GLOSSARY
-* Up to the number of terms given in the TARGET CONTENT COUNTS block, with "term" and "meaning". If fewer meaningful terms exist in the material, include only the available ones — never pad with invented terms.
-
-12. LEARNING OBJECTIVES
-* 3 to 6 objectives starting with action verbs (Explain, Identify, Compare, Apply, Analyze, Solve, Describe, Evaluate).
-
-13. PREREQUISITES
-* 2 to 6 items of prior knowledge. Do not overstate requirements.
-
-14. RECOMMENDED NEXT STEPS
-* 2 to 5 suggestions that logically follow from the lecture.
-
-15. CHATBOT CONTEXT
-* "lecture_overview" (3-5 sentences), "key_takeaways" (exactly 3), "important_terms", "rules_formulas_or_methods", "student_confusion_points", "suggested_student_prompts" (exactly 3).
-
-16. MATHEMATICAL, SCIENTIFIC & COMPUTER SCIENCE CONTENT
-* Fully support Computer Science and Mathematics material: DFA, NFA, ε-NFA, pushdown automata, context-free grammars, regular expressions, the pumping lemma, Turing machines, parsing, graph algorithms, data structures, dynamic programming, operating systems, computer networks, database systems, AI/ML, and discrete mathematics.
-* Render all math, logic notation, automata and algorithms as LaTeX per the output rules above ("$...$" inline, "$$...$$" block).
-* For automata/formal language content: describe each state, transition and acceptance condition in prose, and include a transition table as a plain-text table wherever appropriate.
-* Every formula, algorithm, theorem, proof or automaton must have at least one worked example (from the material if possible, otherwise a simple generated one consistent with the material).
-
-QUALITY CONTROL BEFORE FINAL OUTPUT:
-Silently verify: valid JSON, one top-level object, all keys present, no markdown, no code fences, no trailing commas, quiz/flashcards/practice_tasks/true_false_questions/short_answer_questions/glossary each match the TARGET CONTENT COUNTS given in the input (each quiz question has exactly 4 options with a matching correctAnswer), exactly 3 key_takeaways, exactly 3 suggested prompts, Summary chapter descriptions are genuinely detailed (not brief), Core Concepts do not duplicate the Summary's depth, Study Notes stay concise, all math/CS notation uses LaTeX delimiters, professional English, grounded in the transcript.
-
-FINAL INSTRUCTION:
-Return only the completed JSON object. Do not write anything before or after it.`;
-
-// ПОПРАВЕНАТА ФУНКЦИЈА: Чист, валиден текст за Gemini модел
 export function buildUserMessage({ video_title, subject, difficulty, transcript }) {
   return `INPUT DATA FOR THE STUDY PACKAGE:
   Lecture Title: ${video_title || "Untitled Lecture"}
@@ -276,15 +195,13 @@ export function buildUserMessage({ video_title, subject, difficulty, transcript 
   ${transcript}`;
 }
 
-// --- Multi-source input (multiple uploaded files in one package) --------
+// --- Multi-source input --------------------------------------------------
 
 export const MULTI_SOURCE_INSTRUCTIONS = `
-MULTI-SOURCE INPUT:
-Multiple source documents were provided below, each marked "=== SOURCE N: filename ===" and given in upload order. Treat them as one course, with these rules:
-
-* "summary": process sources in the given order. Tag every chapter with "source_index" (0-based, matching the source order) and "source_title" (the source's meaningful title if it has one, e.g. a slide deck's title slide; otherwise "Lecture N" where N is source_index + 1, 1-based). Do NOT merge chapters from different sources into one entry — each chapter belongs to exactly one source.
-* Every other section — core_concepts, study_notes, quiz, flashcards, practice_tasks, true_false_questions, short_answer_questions, glossary, learning_objectives, prerequisites, recommended_next_steps, chatbot_context — must synthesize information across ALL sources combined as a single course. Do not duplicate a concept/definition/formula that appears in more than one source; merge them into one entry and, if the sources present it differently, reconcile the explanation.
-* Preserve the logical learning order across sources when it affects sequencing (e.g. prerequisites named in an earlier source shouldn't be re-derived from a later one).`;
+MULTI-SOURCE HIGHER-ORDER SYNTHESIS RULES:
+You have been provided with multiple source documents. Treat them as an integrated curriculum:
+* "summary": process sources sequentially by tracking the "source_index" (0-indexed) and "source_title". Prioritize extracting worked examples, practical slide problems, and state transition sequences.
+* Unified Knowledge Graph: For all other evaluation arrays (quiz, flashcards, core_concepts, practice_tasks, etc.), synthesize cross-document concepts. Build items that explicitly force the student to solve synthesis problems or trace state transitions that connect ideas across sources.`;
 
 export function buildMultiSourceUserMessage({ video_title, subject, difficulty, sources }) {
   const body = sources
@@ -298,7 +215,9 @@ export function buildMultiSourceUserMessage({ video_title, subject, difficulty, 
 
   ${targetCountsBlock(suggestedCounts(totalChars))}
 
-  ${sources.length} SOURCE DOCUMENTS TO ANALYZE (in upload order):
+  ${MULTI_SOURCE_INSTRUCTIONS}
+
+  ${sources.length} SOURCE DOCUMENTS TO ANALYZE:
   ${body}`;
 }
 
@@ -307,61 +226,60 @@ export function buildMultiSourceUserMessage({ video_title, subject, difficulty, 
 export const REGENERATABLE_SECTIONS = {
   summary: {
     key: "summary",
-    instructions: `Regenerate the summary — the primary learning resource, not a brief overview. Return JSON: { "summary": [ { "timestamp": 0, "topic_title": "String", "description": "String — full textbook-quality explanation of every important definition, process, formula, algorithm, table, diagram and concept in this chapter", "formulas": [{"name":"String","formula":"String (LaTeX)","variables":"String","when_to_use":"String","example":"String"}], "algorithms_or_processes": ["String"], "diagrams_or_tables_explained": ["String"], "code_explained": ["String"], "examples": ["String"], "key_points": ["String", "String"] } ] }. Create logical chapters (short transcripts 2-4, medium 4-8, long 8-12). Use the actual timeline if timestamps exist; otherwise use 0 for the first chapter. Do not create chapters for greetings or filler. Render math/logic/automata notation as LaTeX ("$...$" / "$$...$$"). Never omit important information for brevity.`,
+    instructions: `Regenerate the summary section using textbook-quality pedagogical scaffolding (Intuition -> Mechanics -> Edge Cases). Extract and completely solve every mathematical problem, slide example, or algorithmic trace present in the transcript. For automata/state machines, include a markdown table and valid Mermaid.js diagram syntax. Use double-escaped LaTeX (\\\\ commands).`,
   },
   core_concepts: {
     key: "core_concepts",
-    instructions: `Regenerate the core concepts — a quick review of the lecture's most essential ideas, not a repeat of the Summary. Return JSON: { "core_concepts": [ { "term": "String", "definition": "String — short explanation", "why_it_matters": "String", "related_concepts": ["String"], "common_mistakes": "String", "example": "String" } ] }. 3 to 8 concepts central to the lecture. If an example cannot be safely created, use "Not explicitly provided in the transcript." If no common mistake applies, use "None commonly observed."`,
+    instructions: `Regenerate the core concepts — a quick review of the lecture's most essential ideas, focusing on how they act as foundational rules for problem-solving. Return JSON with key "core_concepts".`,
   },
   study_notes: {
     key: "study_notes",
-    instructions: `Regenerate the study notes. Return JSON: { "study_notes": { "main_ideas": ["String"], "important_details": ["String"], "formulas_or_rules": ["String"], "processes_or_steps": ["String"], "comparisons": [{"concept_a":"String","concept_b":"String","difference":"String"}], "common_misunderstandings": ["String"], "exam_focus": ["String"] } }. Use empty arrays for anything not applicable.`,
+    instructions: `Regenerate the study notes. Return JSON with key "study_notes". Highlight common procedural missteps and exam-heavy problem archetypes.`,
   },
   quiz: {
     key: "quiz",
     instructions: (counts) =>
-      `Regenerate the quiz. Return JSON: { "quiz": [ { "question": "String", "options": ["A","B","C","D"], "correctAnswer": "String matching one option exactly", "explanation": "String", "difficulty": "easy | medium | hard", "concept_tested": "String" } ] }. Generate ${counts.quiz} multiple-choice questions (scaled to how much material the lecture covers), each with exactly 4 plausible distinct options. Difficulty distribution: roughly 20% easy, 60% medium, 20% hard, with at least one of each when the count allows. Vary the questions from any previous version.`,
+      `Regenerate the quiz array to contain exactly ${counts.quiz} multiple-choice questions. Ensure a solid portion of the quiz tests mathematical, technical, or state diagram evaluation rather than just vocab matching. Provide clear explanations.`,
   },
   flashcards: {
     key: "flashcards",
     instructions: (counts) =>
-      `Regenerate the flashcards. Return JSON: { "flashcards": [ { "front": "String", "back": "String", "category": "definition | formula | comparison | process | example | mistake" } ] }. Generate ${counts.flashcards} flashcards (scaled to how much material the lecture covers).`,
+      `Regenerate exactly ${counts.flashcards} active-recall flashcards. Include procedural flashcards and state/transition queries to reinforce problem-solving.`,
   },
   practice_tasks: {
     key: "practice_tasks",
     instructions: (counts) =>
-      `Regenerate the practice tasks. Return JSON: { "practice_tasks": [ { "task": "String", "difficulty": "easy | medium | hard", "hint": "String", "solution": "String", "concepts_used": ["String"] } ] }. Generate ${counts.practice} tasks (scaled to how much material the lecture covers), distributed as evenly as possible across easy/medium/hard with at least one of each when the count allows.`,
+      `Regenerate exactly ${counts.practice} practice tasks. These must be direct computational, analytical, or algorithmic challenges taken or heavily inspired by the tasks in the material, with complete execution traces and structural/Mermaid solutions where applicable.`,
+  },
+  edge_cases_and_limits: {
+    key: "edge_cases_and_limits",
+    instructions: `Regenerate the edge_cases_and_limits section. Focus on parameters, stack limits (PDA), or string inputs that break formulas or automata provided in the practical tasks.`,
   },
   true_false_questions: {
     key: "true_false_questions",
     instructions: (counts) =>
-      `Regenerate the true/false questions. Return JSON: { "true_false_questions": [ { "statement": "String", "answer": true, "explanation": "String" } ] }. Generate ${counts.trueFalse} items (scaled to how much material the lecture covers), roughly an even mix of true and false, conceptual and non-trivial.`,
+      `Regenerate the true/false questions. Generate ${counts.trueFalse} items targeting common traps students fall into while setting up calculations or execution steps.`,
   },
   short_answer_questions: {
     key: "short_answer_questions",
     instructions: (counts) =>
-      `Regenerate the short-answer questions. Return JSON: { "short_answer_questions": [ { "question": "String", "expected_answer": "String", "grading_hint": "String" } ] }. Generate ${counts.shortAnswer} items (scaled to how much material the lecture covers) requiring explanation, not one-word answers.`,
+      `Regenerate the short-answer questions. Generate ${counts.shortAnswer} items requiring students to mathematically or structurally justify a state machine or solution path.`,
   },
   glossary: {
     key: "glossary",
     instructions: (counts) =>
-      `Regenerate the glossary. Return JSON: { "glossary": [ { "term": "String", "meaning": "String" } ] }. Up to ${counts.glossary} important terms (scaled to how much material the lecture covers). If fewer meaningful terms exist, include only the available ones — never pad with invented terms.`,
+      `Regenerate the glossary. Return JSON with key "glossary" containing up to ${counts.glossary} operational terms.`,
   },
 };
 
 export function buildRegenerateSystemPrompt(section, counts) {
   const spec = REGENERATABLE_SECTIONS[section];
   const instructions = typeof spec.instructions === "function" ? spec.instructions(counts) : spec.instructions;
-  return `You are an expert AI assistant specializing in Educational Technology and Instructional Design, helping regenerate one part of an existing study package built from a lecture transcript.
+  return `You are an elite Educational Technology AI agent. Regenerate the single requested JSON property section based on the following specific instructions:
 
 ${instructions}
 
-IMPORTANT OUTPUT RULES:
-* Return only one valid JSON object with exactly the single top-level key described above.
-* Do not include markdown formatting, code fences, comments, or trailing commas.
-* All object keys and string values must use double quotes.
-* The output must be entirely in English and grounded strictly in the provided transcript — do not invent facts.
-* Return only the JSON object, nothing before or after it.`;
+STRICT OUTPUT FORMAT: Return ONLY the raw JSON object containing exactly the top-level key: "${spec.key}". No explanations, no markdown blocks, no formatting anomalies. Double escape all LaTeX backslashes (\`\\\\\\\\\`).`;
 }
 
 export function buildRegenerateUserMessage({ video_title, subject, transcript }) {
@@ -372,29 +290,36 @@ RAW TRANSCRIPT:
 ${transcript}`;
 }
 
-// --- Per-concept AI actions ----------------------------------------------
+// --- Per-concept AI actions (The Real-Time AI Tutor Layer) ----------------
 
 export const EXPLAIN_ACTIONS = {
-  simpler: "Explain this concept in simpler terms than the original definition, for a student who found it confusing.",
-  detail: "Give a more detailed, in-depth explanation of this concept, including nuance the original definition leaves out.",
-  example: "Give one concrete real-world example that illustrates this concept clearly.",
-  compare: "Compare this concept with the given related concept, focusing on the key differences and similarities.",
-  practice: "Generate one new practice question (with its answer and a short explanation) that tests understanding of this concept.",
-  analogy: "Generate one clear analogy that helps a student build intuition for this concept.",
-  eli10: "Explain this concept the way you'd explain it to a curious 10-year-old — simple words, no jargon.",
+  simpler: "Deconstruct this concept to its absolute fundamental mechanism. Use a plain-language explanation that bypasses heavy jargon while retaining technical accuracy.",
+  detail: "Provide an advanced graduate-level granular breakdown of this concept. Include underlying architectural/mathematical nuances, invariant properties, and edge-case exceptions.",
+  example: "Formulate a concrete, end-to-end trace or real-world industrial/academic example where this concept is explicitly executed or computed.",
+  compare: "Construct a high-contrast analytical juxtaposition with the related concept. Detail shared abstractions, fundamental operational differences, and specific scenarios where one dominates over the other.",
+  practice: "Design an elegant mini-diagnostic check (1 multi-step question + itemized interactive solution) specifically tailored to expose bugs in a student's mental model of this concept.",
+  analogy: "Create a vivid, mathematically isomorphic physical or situational analogy that translates the abstract structural mechanics of this concept into highly intuitive spatial or everyday systems.",
+  eli10: "Explain this using extreme cognitive scaffolding fit for a 10-year-old. Rely on simple verbs, zero jargon, and high-imagery narrative styling, without losing the logical core of the concept.",
+  socratic: "Do NOT give the answer directly. Instead, ask the student 1-2 guiding, analytical questions based on their query to lead them to discover the answer themselves. Provide a subtle hint embedded in the context.",
+  bug_hunt: "Generate a broken code snippet, a flawed mathematical proof, or an incorrect logical derivation based on this concept. Challenge the student to locate the 'bug' and explain why it violates academic rules.",
+  reframe: "Explain this concept from a completely different domain's perspective (e.g., explain a PDA stack using a pile of cafeteria plates, or a Turing Machine tape using a film reel projector)."
 };
 
 export function buildExplainPrompt({ lectureTitle, lectureSummary, term, definition, action, compareWith }) {
   const instruction = EXPLAIN_ACTIONS[action];
-  return `You are an AI tutor helping a student understand one concept from a lecture titled "${lectureTitle}".
+  return `You are an elite personal AI Tutor facilitating an interactive learning session for a student studying "${lectureTitle}".
 
-Lecture context: ${lectureSummary || "N/A"}
+[CONTEXT]
+Lecture Summary: ${lectureSummary || "N/A"}
+Target Term: "${term}"
+Current Working Base: "${definition || "N/A"}"
+${compareWith ? `Juxtaposition Component: "${compareWith}"` : ""}
 
-Concept: ${term}
-Current definition: ${definition || "N/A"}
-${compareWith ? `Compare with: ${compareWith}` : ""}
+[TASK]
+${instruction}
 
-Task: ${instruction}
-
-Answer directly in 2-6 sentences (or as a short question+answer pair if generating a practice question). Do not repeat the original definition verbatim. Stay grounded in the lecture's subject matter — do not introduce unrelated topics. Plain text only, no markdown headers. If the answer involves a formula or mathematical/logical notation, render it as LaTeX using "$...$" for inline math or "$$...$$" for block math.`;
+[PEDAGOGICAL ARCHITECTURE]
+* Answer in 3 to 6 high-impact sentences (or a short interactive question/code trace structure if performing a bug_hunt or practice check).
+* Avoid lazy intros like "Sure, here is...". Dive straight into the core value.
+* If rendering formulas, state diagrams, or structural symbols, use LaTeX ($inline$ or $$display$$) or Mermaid code strings where appropriate. Keep formatting strictly plain-text without markdown headers (\`#\`).`;
 }

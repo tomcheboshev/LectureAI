@@ -439,6 +439,7 @@ async function remove() {
   font-family: var(--font-mono); font-size: 0.6875rem;
   border: 1px solid rgb(226 232 240); border-radius: 999px;
   padding: 0.2rem 0.65rem; color: rgb(100 116 139);
+  margin-left: 20px;
 }
 :global(html.dark .badge) { border-color: var(--color-border-dark); color: rgb(148 163 184); }
 .badge-primary { background: color-mix(in srgb, var(--color-primary) 10%, transparent); border-color: color-mix(in srgb, var(--color-primary) 30%, transparent); color: var(--color-primary); }
