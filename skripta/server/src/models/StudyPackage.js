@@ -33,12 +33,30 @@ const StudyPackageSchema = new Schema(
     chatbot_context: { type: Schema.Types.Mixed, default: {} },
     chat_history: { type: [Schema.Types.Mixed], default: [] },
     source: {
-      type: { type: String, enum: ["transcript", "youtube", "pdf", "docx"], default: "transcript" },
+      type: {
+        type: String,
+        enum: ["transcript", "youtube", "pdf", "docx", "pptx", "txt", "md", "srt", "vtt", "image", "mixed"],
+        default: "transcript",
+      },
       url: String,
       thumbnail: String,
       channel: String,
       duration_seconds: Number,
       filename: String,
+    },
+    // Present when generated from one or more uploaded files (multi-file
+    // upload); each entry is one source document, in upload order.
+    sources: {
+      type: [
+        {
+          filename: String,
+          file_type: String,
+          order: Number,
+          extracted_text: { type: String, select: false },
+          metadata: Schema.Types.Mixed,
+        },
+      ],
+      default: undefined,
     },
     raw_transcript: { type: String, select: false }, // kept for regeneration, not sent to client by default
   },

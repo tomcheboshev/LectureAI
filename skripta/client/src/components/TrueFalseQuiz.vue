@@ -1,14 +1,14 @@
 <template>
   <div class="flex flex-col gap-3">
     <div v-for="(q, i) in questions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-      <p class="font-medium text-slate-900 dark:text-white mb-3">{{ q.statement }}</p>
+      <p class="font-medium text-slate-900 dark:text-white mb-3" v-html="renderLatexText(q.statement)"></p>
       <div class="flex gap-2.5">
         <button class="flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition" :class="btnClass(i, true)" :disabled="answers[i] !== null" @click="answer(i, true)">True</button>
         <button class="flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition" :class="btnClass(i, false)" :disabled="answers[i] !== null" @click="answer(i, false)">False</button>
       </div>
       <p v-if="answers[i] !== null" class="text-sm mt-3" :class="answers[i] === q.answer ? 'text-success' : 'text-danger'">
         <strong>{{ answers[i] === q.answer ? "Correct" : "Wrong" }} — answer is {{ q.answer ? "TRUE" : "FALSE" }}.</strong>
-        <span class="text-slate-600 dark:text-slate-300"> {{ q.explanation }}</span>
+        <span class="text-slate-600 dark:text-slate-300" v-html="' ' + renderLatexText(q.explanation)"></span>
       </p>
     </div>
   </div>
@@ -16,6 +16,7 @@
 
 <script setup>
 import { ref } from "vue";
+import { renderLatexText } from "../composables/useLatex.js";
 
 const props = defineProps({ questions: { type: Array, required: true } });
 const answers = ref(props.questions.map(() => null));

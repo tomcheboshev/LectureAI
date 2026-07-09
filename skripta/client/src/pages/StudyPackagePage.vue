@@ -33,7 +33,13 @@
           <span v-else-if="pkg.source?.type === 'docx'" class="badge">
             <DocumentIcon class="w-3 h-3 mr-1" /> {{ pkg.source.filename || "DOCX" }}
           </span>
+          <span v-else-if="pkg.sources?.length" class="badge">
+            <DocumentIcon class="w-3 h-3 mr-1" /> {{ pkg.sources.length }} source{{ pkg.sources.length > 1 ? "s" : "" }}
+          </span>
         </div>
+        <p v-if="pkg.sources?.length > 1" class="text-xs text-slate-400 mt-2">
+          {{ orderedSourceFilenames.join(" · ") }}
+        </p>
       </div>
       <div class="shrink-0 flex items-center gap-2 relative">
         <button class="inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-200 dark:border-border-dark px-3.5 py-2 text-sm font-semibold hover:border-slate-400 transition" @click="exportOpen = !exportOpen">
@@ -82,7 +88,12 @@
               <RegenerateButton :package-id="pkg._id" section="summary" @regenerated="(d) => (pkg.summary = d.summary)" />
             </div>
             <div class="relative flex flex-col gap-6 pl-6 before:content-[''] before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-slate-200 dark:before:bg-border-dark">
-              <div v-for="(c, i) in pkg.summary" :key="i" class="relative">
+              <template v-for="(c, i) in pkg.summary" :key="i">
+                <div v-if="c.source_title && c.source_title !== pkg.summary[i - 1]?.source_title" class="relative -ml-6 flex items-center gap-3 py-1">
+                  <span class="badge badge-primary shrink-0">{{ c.source_title }}</span>
+                  <span class="h-px flex-1 bg-slate-200 dark:bg-border-dark"></span>
+                </div>
+                <div class="relative">
                 <span class="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/15"></span>
                 <button
                   v-if="youtubeVideoId"
@@ -98,10 +109,10 @@
                 <div v-if="c.formulas?.length" class="flex flex-col gap-2 mb-3">
                   <div v-for="(f, fi) in c.formulas" :key="fi" class="rounded-xl bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark p-3">
                     <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ f.name }}</p>
-                    <div class="text-base text-slate-900 dark:text-white my-1.5" v-html="renderLatexText('$$' + f.formula + '$$')"></div>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ f.variables }}</p>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><strong>When to use:</strong> {{ f.when_to_use }}</p>
-                    <p v-if="f.example" class="text-xs text-slate-500 dark:text-slate-400 mt-1"><strong>Example:</strong> {{ f.example }}</p>
+                    <div class="text-base text-slate-900 dark:text-white my-1.5" v-html="renderBlockFormula(f.formula)"></div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400" v-html="renderLatexText(f.variables)"></p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><strong>When to use:</strong> <span v-html="renderLatexText(f.when_to_use)"></span></p>
+                    <p v-if="f.example" class="text-xs text-slate-500 dark:text-slate-400 mt-1"><strong>Example:</strong> <span v-html="renderLatexText(f.example)"></span></p>
                   </div>
                 </div>
 
@@ -117,7 +128,8 @@
                 <ul class="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 space-y-1">
                   <li v-for="k in c.key_points" :key="k">{{ k }}</li>
                 </ul>
-              </div>
+                </div>
+              </template>
             </div>
           </div>
 
@@ -130,8 +142,8 @@
               <div v-for="c in pkg.core_concepts" :key="c.term" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
                 <h3 class="font-display font-bold text-primary mb-1.5">{{ c.term }}</h3>
                 <p class="text-sm text-slate-700 dark:text-slate-200 mb-2" v-html="renderLatexText(c.definition)"></p>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mb-2"><strong class="text-slate-600 dark:text-slate-300">Why it matters:</strong> {{ c.why_it_matters }}</p>
-                <p v-if="c.common_mistakes" class="text-sm text-danger/90 mb-2"><strong>Common mistake:</strong> {{ c.common_mistakes }}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-2"><strong class="text-slate-600 dark:text-slate-300">Why it matters:</strong> <span v-html="renderLatexText(c.why_it_matters)"></span></p>
+                <p v-if="c.common_mistakes" class="text-sm text-danger/90 mb-2"><strong>Common mistake:</strong> <span v-html="renderLatexText(c.common_mistakes)"></span></p>
                 <p class="font-mono text-xs bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-slate-500 dark:text-slate-400" v-html="renderLatexText(c.example)"></p>
                 <p v-if="c.related_concepts?.length" class="text-xs font-mono text-slate-400 mt-2">related: {{ c.related_concepts.join(", ") }}</p>
                 <ConceptExplainer :package-id="pkg._id" :term="c.term" :definition="c.definition" />
@@ -192,7 +204,7 @@
             <dl class="rounded-2xl border border-slate-200 dark:border-border-dark divide-y divide-slate-100 dark:divide-border-dark">
               <div v-for="g in filteredGlossary" :key="g.term" class="px-5 py-3.5">
                 <dt class="font-display font-bold text-slate-900 dark:text-white">{{ g.term }}</dt>
-                <dd class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ g.meaning }}</dd>
+                <dd class="text-sm text-slate-500 dark:text-slate-400 mt-0.5" v-html="renderLatexText(g.meaning)"></dd>
               </div>
               <p v-if="filteredGlossary.length === 0" class="px-5 py-6 text-sm text-slate-400 text-center">No terms match "{{ glossaryQuery }}".</p>
             </dl>
@@ -221,18 +233,18 @@
             </div>
             <div v-for="(t, i) in pkg.practice_tasks" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
               <span class="badge mb-2" :class="diffTint(t.difficulty)">{{ t.difficulty }}</span>
-              <p class="font-medium text-slate-900 dark:text-white mb-2">{{ t.task }}</p>
+              <p class="font-medium text-slate-900 dark:text-white mb-2" v-html="renderLatexText(t.task)"></p>
               <details class="mb-1.5 group">
                 <summary class="cursor-pointer text-sm font-semibold text-primary list-none flex items-center gap-1">
                   <ChevronRightIcon class="w-4 h-4 group-open:rotate-90 transition-transform" /> Hint
                 </summary>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1.5 pl-5">{{ t.hint }}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1.5 pl-5" v-html="renderLatexText(t.hint)"></p>
               </details>
               <details class="group">
                 <summary class="cursor-pointer text-sm font-semibold text-primary list-none flex items-center gap-1">
                   <ChevronRightIcon class="w-4 h-4 group-open:rotate-90 transition-transform" /> Solution
                 </summary>
-                <p class="text-sm text-slate-600 dark:text-slate-300 mt-1.5 pl-5">{{ t.solution }}</p>
+                <p class="text-sm text-slate-600 dark:text-slate-300 mt-1.5 pl-5" v-html="renderLatexText(t.solution)"></p>
               </details>
               <p class="font-mono text-xs text-slate-400 mt-3">uses: {{ (t.concepts_used || []).join(", ") }}</p>
             </div>
@@ -252,15 +264,15 @@
               <RegenerateButton :package-id="pkg._id" section="short_answer_questions" @regenerated="(d) => (pkg.short_answer_questions = d.short_answer_questions)" />
             </div>
             <div v-for="(q, i) in pkg.short_answer_questions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-              <p class="font-medium text-slate-900 dark:text-white mb-2">{{ q.question }}</p>
+              <p class="font-medium text-slate-900 dark:text-white mb-2" v-html="renderLatexText(q.question)"></p>
               <textarea v-model="shortAnswerDrafts[i]" rows="2" placeholder="Type your answer, then reveal the expected one…" class="w-full rounded-lg border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 mb-2"></textarea>
               <details class="group">
                 <summary class="cursor-pointer text-sm font-semibold text-primary list-none flex items-center gap-1">
                   <ChevronRightIcon class="w-4 h-4 group-open:rotate-90 transition-transform" /> Reveal expected answer
                 </summary>
                 <div class="mt-1.5 pl-5">
-                  <p class="text-sm text-slate-700 dark:text-slate-200">{{ q.expected_answer }}</p>
-                  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1"><strong>Grading hint:</strong> {{ q.grading_hint }}</p>
+                  <p class="text-sm text-slate-700 dark:text-slate-200" v-html="renderLatexText(q.expected_answer)"></p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1"><strong>Grading hint:</strong> <span v-html="renderLatexText(q.grading_hint)"></span></p>
                 </div>
               </details>
             </div>
@@ -319,7 +331,7 @@ import {
 import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
 import { downloadMarkdown, downloadJson, openPrintView } from "../composables/useExport.js";
-import { renderLatexText } from "../composables/useLatex.js";
+import { renderLatexText, renderBlockFormula } from "../composables/useLatex.js";
 import QuizPlayer from "../components/QuizPlayer.vue";
 import FlashcardDeck from "../components/FlashcardDeck.vue";
 import TrueFalseQuiz from "../components/TrueFalseQuiz.vue";
@@ -366,6 +378,10 @@ const youtubeVideoId = computed(() => {
   const match = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
   return match ? match[1] : null;
 });
+
+const orderedSourceFilenames = computed(() =>
+  [...(pkg.value?.sources || [])].sort((a, b) => a.order - b.order).map((s) => s.filename)
+);
 
 const notes = computed(() => pkg.value?.study_notes || {});
 const filteredGlossary = computed(() => {

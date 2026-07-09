@@ -14,12 +14,12 @@
         <div class="absolute inset-0 [backface-visibility:hidden] rounded-2xl border-2 border-slate-900 dark:border-white/20 bg-white dark:bg-surface-dark shadow-[4px_4px_0_var(--color-primary)] flex flex-col items-center justify-center p-8 text-center">
           <span class="absolute top-3 left-4 font-mono text-[10px] tracking-widest text-slate-400">FRONT</span>
           <CheckCircleIcon v-if="learned.has(current.front)" class="absolute top-3 right-4 w-5 h-5 text-success" />
-          <p class="text-lg font-medium text-slate-900 dark:text-white">{{ current.front }}</p>
+          <p class="text-lg font-medium text-slate-900 dark:text-white" v-html="renderLatexText(current.front)"></p>
           <span class="absolute bottom-3 text-xs text-slate-400">tap to flip</span>
         </div>
         <div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl border-2 border-primary bg-primary/5 dark:bg-primary/10 flex flex-col items-center justify-center p-8 text-center">
           <span class="absolute top-3 left-4 font-mono text-[10px] tracking-widest text-slate-400">BACK</span>
-          <p class="text-base text-slate-800 dark:text-slate-100">{{ current.back }}</p>
+          <p class="text-base text-slate-800 dark:text-slate-100" v-html="renderLatexText(current.back)"></p>
         </div>
       </div>
     </button>
@@ -42,6 +42,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import { CheckCircleIcon, ArrowPathIcon } from "@heroicons/vue/24/outline";
+import { renderLatexText } from "../composables/useLatex.js";
 
 const props = defineProps({ flashcards: { type: Array, required: true } });
 

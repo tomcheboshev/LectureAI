@@ -22,6 +22,9 @@
         <span v-if="sourceIcon" class="inline-flex items-center gap-1" :title="pkg.source.type">
           <component :is="sourceIcon" class="w-4 h-4" />
         </span>
+        <span v-if="pkg.sources?.length > 1" class="inline-flex items-center gap-1" :title="pkg.sources.map((s) => s.filename).join(', ')">
+          <DocumentDuplicateIcon class="w-4 h-4" /> {{ pkg.sources.length }} sources
+        </span>
         <span class="inline-flex items-center gap-1"><QuestionMarkCircleIcon class="w-4 h-4" /> {{ pkg.quizCount }} quiz</span>
         <span class="inline-flex items-center gap-1"><Squares2X2Icon class="w-4 h-4" /> {{ pkg.flashcardCount }} cards</span>
         <span class="ml-auto capitalize">{{ pkg.metadata?.estimated_level }}</span>
@@ -33,14 +36,14 @@
 <script setup>
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import { QuestionMarkCircleIcon, Squares2X2Icon, VideoCameraIcon, DocumentIcon } from "@heroicons/vue/24/outline";
+import { QuestionMarkCircleIcon, Squares2X2Icon, VideoCameraIcon, DocumentIcon, DocumentDuplicateIcon } from "@heroicons/vue/24/outline";
 
 const props = defineProps({ pkg: { type: Object, required: true } });
 
 const sourceIcon = computed(() => {
   const type = props.pkg.source?.type;
   if (type === "youtube") return VideoCameraIcon;
-  if (type === "pdf" || type === "docx") return DocumentIcon;
+  if (type && type !== "transcript" && type !== "mixed") return DocumentIcon;
   return null;
 });
 

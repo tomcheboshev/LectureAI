@@ -7,7 +7,7 @@
       <p class="font-mono text-xs text-slate-500 dark:text-slate-400 mb-2">
         Question {{ index + 1 }} / {{ quiz.length }} · {{ current.difficulty }} · {{ current.concept_tested }}
       </p>
-      <h3 class="text-xl font-display font-bold text-slate-900 dark:text-white mb-5">{{ current.question }}</h3>
+      <h3 class="text-xl font-display font-bold text-slate-900 dark:text-white mb-5" v-html="renderLatexText(current.question)"></h3>
 
       <div class="flex flex-col gap-2.5">
         <button
@@ -17,14 +17,13 @@
           class="text-left px-4 py-3 rounded-xl border-2 font-medium text-sm transition"
           :class="optionClass(opt)"
           @click="pick(opt)"
-        >
-          {{ opt }}
-        </button>
+          v-html="renderLatexText(opt)"
+        ></button>
       </div>
 
       <div v-if="answered" class="mt-5 rounded-xl border-2 p-4 text-sm" :class="picked === current.correctAnswer ? 'border-success/40 bg-success/5 text-success' : 'border-danger/40 bg-danger/5 text-danger'">
         <strong>{{ picked === current.correctAnswer ? "Correct." : "Not quite." }}</strong>
-        <span class="text-slate-600 dark:text-slate-300"> {{ current.explanation }}</span>
+        <span class="text-slate-600 dark:text-slate-300" v-html="' ' + renderLatexText(current.explanation)"></span>
       </div>
 
       <button v-if="answered" class="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover transition" @click="next">
@@ -48,6 +47,7 @@
 import { ref, computed } from "vue";
 import { ArrowRightIcon, ArrowPathIcon } from "@heroicons/vue/24/outline";
 import { fireConfetti } from "../composables/useConfetti.js";
+import { renderLatexText } from "../composables/useLatex.js";
 
 const props = defineProps({ quiz: { type: Array, required: true } });
 
