@@ -7,8 +7,21 @@ const { Schema } = mongoose;
 // never crashes a save, while still indexing the fields we query on.
 const StudyPackageSchema = new Schema(
   {
+    owner: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+
+    // Generation runs asynchronously (extract -> generate -> save); the
+    // frontend polls GET /:id/status while this progresses.
+    status: {
+      type: String,
+      enum: ["queued", "extracting", "generating", "saving", "completed", "failed"],
+      default: "completed", // legacy/synchronous creation paths default to already-done
+      index: true,
+    },
+    progress: { type: Number, default: 100, min: 0, max: 100 },
+    generationError: String,
+
     metadata: {
-      video_title: { type: String, required: true, index: true },
+      video_title: { type: String, default: "Generating…", index: true },
       subject: { type: String, index: true },
       estimated_level: String,
       estimated_duration_minutes: Number,

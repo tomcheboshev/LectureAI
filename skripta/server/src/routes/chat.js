@@ -1,14 +1,17 @@
 import { Router } from "express";
 import StudyPackage from "../models/StudyPackage.js";
-// Промена: Го менуваме импортот кон новата gemini.js услуга
 import { chatAboutLecture } from "../services/gemini.js";
+import { requireAuth } from "../middleware/auth.js";
+import { respondError } from "../utils/httpError.js";
+import { planLimits, upgradeError } from "../services/subscription.js";
 
 const router = Router();
+router.use(requireAuth);
 
 // GET /api/chat/:id — load the persisted conversation for this package
 router.get("/:id", async (req, res) => {
   try {
-    const doc = await StudyPackage.findById(req.params.id, "chat_history").lean();
+    const doc = await StudyPackage.findOne({ _id: req.params.id, owner: req.userId }, "chat_history").lean();
     if (!doc) return res.status(404).json({ error: "Study package not found." });
     res.json({ messages: doc.chat_history || [] });
   } catch {
@@ -37,8 +40,20 @@ router.post("/:id", async (req, res) => {
       return res.status(400).json({ error: "Last message must be from the user." });
     }
 
-    const doc = await StudyPackage.findById(req.params.id);
+    const doc = await StudyPackage.findOne({ _id: req.params.id, owner: req.userId });
     if (!doc) return res.status(404).json({ error: "Study package not found." });
+
+    const limits = planLimits(req.user.plan);
+    if (limits.maxChatMessagesPerPackage !== Infinity) {
+      const sentCount = (doc.chat_history || []).filter((m) => m.role === "user").length;
+      if (sentCount >= limits.maxChatMessagesPerPackage) {
+        throw upgradeError(
+          "chat_limit",
+          `You've reached the ${limits.maxChatMessagesPerPackage}-message AI Tutor limit on the ${req.user.plan} plan for this study package. Upgrade to Pro for unlimited chat.`,
+          { limit: limits.maxChatMessagesPerPackage, plan: req.user.plan }
+        );
+      }
+    }
 
     const reply = await chatAboutLecture(doc, clean);
 
@@ -48,14 +63,14 @@ router.post("/:id", async (req, res) => {
     res.json({ reply });
   } catch (err) {
     console.error("Chat failed:", err);
-    res.status(err.status || 500).json({ error: err.userFacing ? err.message : "Chat failed. Try again." });
+    respondError(res, err, "Chat failed. Try again.");
   }
 });
 
 // DELETE /api/chat/:id — clear the persisted conversation
 router.delete("/:id", async (req, res) => {
   try {
-    const doc = await StudyPackage.findByIdAndUpdate(req.params.id, { chat_history: [] });
+    const doc = await StudyPackage.findOneAndUpdate({ _id: req.params.id, owner: req.userId }, { chat_history: [] });
     if (!doc) return res.status(404).json({ error: "Study package not found." });
     res.json({ ok: true });
   } catch {
