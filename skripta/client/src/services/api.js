@@ -15,6 +15,9 @@ export const api = {
   getPackage: (id) => http.get(`/packages/${id}`).then((r) => r.data),
   deletePackage: (id) => http.delete(`/packages/${id}`).then((r) => r.data),
   generate: (payload) => http.post("/packages/generate", payload).then((r) => r.data),
+  generateFromYoutube: (payload) => http.post("/packages/from-youtube", payload).then((r) => r.data),
+  generateFromFile: (formData) =>
+    http.post("/packages/from-file", formData, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data),
   regenerateSection: (id, section) => http.post(`/packages/${id}/regenerate`, { section }).then((r) => r.data),
   explainConcept: (id, payload) => http.post(`/packages/${id}/explain`, payload).then((r) => r.data),
   chat: (id, messages) => http.post(`/chat/${id}`, { messages }).then((r) => r.data),

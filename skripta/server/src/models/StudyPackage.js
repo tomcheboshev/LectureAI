@@ -32,6 +32,14 @@ const StudyPackageSchema = new Schema(
     recommended_next_steps: { type: [String], default: [] },
     chatbot_context: { type: Schema.Types.Mixed, default: {} },
     chat_history: { type: [Schema.Types.Mixed], default: [] },
+    source: {
+      type: { type: String, enum: ["transcript", "youtube", "pdf", "docx"], default: "transcript" },
+      url: String,
+      thumbnail: String,
+      channel: String,
+      duration_seconds: Number,
+      filename: String,
+    },
     raw_transcript: { type: String, select: false }, // kept for regeneration, not sent to client by default
   },
   { timestamps: true }
