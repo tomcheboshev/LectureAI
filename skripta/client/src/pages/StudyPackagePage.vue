@@ -24,6 +24,15 @@
           <span class="badge">{{ pkg.metadata.content_type }}</span>
           <span class="badge">~{{ pkg.metadata.estimated_duration_minutes }} min</span>
           <span class="badge">transcript: {{ pkg.metadata.transcript_quality }}</span>
+          <span v-if="pkg.source?.type === 'youtube'" class="badge badge-danger">
+            <VideoCameraIcon class="w-3 h-3 mr-1" /> {{ pkg.source.channel || "YouTube" }}
+          </span>
+          <span v-else-if="pkg.source?.type === 'pdf'" class="badge">
+            <DocumentIcon class="w-3 h-3 mr-1" /> {{ pkg.source.filename || "PDF" }}
+          </span>
+          <span v-else-if="pkg.source?.type === 'docx'" class="badge">
+            <DocumentIcon class="w-3 h-3 mr-1" /> {{ pkg.source.filename || "DOCX" }}
+          </span>
         </div>
       </div>
       <div class="shrink-0 flex items-center gap-2 relative">
@@ -63,6 +72,7 @@
         <Transition name="fade" mode="out-in">
           <!-- SUMMARY -->
           <div v-if="tab === 'summary'" key="summary" class="flex flex-col gap-5">
+            <YouTubePlayer v-if="youtubeVideoId" ref="youtubePlayer" :video-id="youtubeVideoId" />
             <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
               <h3 class="font-display font-bold mb-2">Full lecture summary</h3>
               <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">{{ pkg.full_lecture_summary }}</p>
@@ -74,7 +84,14 @@
             <div class="relative flex flex-col gap-5 pl-6 before:content-[''] before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-slate-200 dark:before:bg-border-dark">
               <div v-for="(c, i) in pkg.summary" :key="i" class="relative">
                 <span class="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/15"></span>
-                <p class="font-mono text-xs text-primary mb-0.5">{{ formatTs(c.timestamp) }}</p>
+                <button
+                  v-if="youtubeVideoId"
+                  class="font-mono text-xs text-primary mb-0.5 underline underline-offset-2 hover:text-primary-hover"
+                  @click="youtubePlayer?.seekTo(c.timestamp)"
+                >
+                  {{ formatTs(c.timestamp) }} ▶
+                </button>
+                <p v-else class="font-mono text-xs text-primary mb-0.5">{{ formatTs(c.timestamp) }}</p>
                 <h4 class="font-display font-bold text-slate-900 dark:text-white">{{ c.topic_title }}</h4>
                 <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5 mb-2">{{ c.description }}</p>
                 <ul class="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 space-y-1">
@@ -273,6 +290,7 @@ import {
   FireIcon, CheckCircleIcon, BookOpenIcon, AcademicCapIcon, DocumentTextIcon,
   QueueListIcon, QuestionMarkCircleIcon, Squares2X2Icon, ClipboardDocumentCheckIcon,
   CheckIcon, PencilSquareIcon, MapIcon, ChatBubbleLeftRightIcon,
+  VideoCameraIcon, DocumentIcon,
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
@@ -283,6 +301,7 @@ import TrueFalseQuiz from "../components/TrueFalseQuiz.vue";
 import ChatPanel from "../components/ChatPanel.vue";
 import ConceptExplainer from "../components/ConceptExplainer.vue";
 import RegenerateButton from "../components/RegenerateButton.vue";
+import YouTubePlayer from "../components/YouTubePlayer.vue";
 import Modal from "../components/ui/Modal.vue";
 
 const props = defineProps({ id: { type: String, required: true } });
@@ -314,6 +333,14 @@ const tabs = [
   { id: "path", label: "Learning Path", icon: MapIcon },
   { id: "chat", label: "AI Tutor", icon: ChatBubbleLeftRightIcon },
 ];
+
+const youtubePlayer = ref(null);
+const youtubeVideoId = computed(() => {
+  const url = pkg.value?.source?.type === "youtube" ? pkg.value.source.url : null;
+  if (!url) return null;
+  const match = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
+  return match ? match[1] : null;
+});
 
 const notes = computed(() => pkg.value?.study_notes || {});
 const filteredGlossary = computed(() => {
