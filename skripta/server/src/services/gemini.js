@@ -9,6 +9,7 @@ import {
   buildRegenerateSystemPrompt,
   buildRegenerateUserMessage,
   buildExplainPrompt,
+  suggestedCounts,
 } from "../prompt.js";
 
 const ai = new GoogleGenAI({
@@ -81,13 +82,39 @@ function extractJson(text) {
   }
 }
 
-function validatePackage(pkg) {
+// Content counts (quiz, flashcards, ...) scale with material size, so we
+// can't check for one exact number. Instead check each array is present and
+// within a generous range around the target we asked for — this still
+// catches a genuinely broken response (empty array, wildly off) without
+// failing the whole generation over Gemini producing 7 questions instead of
+// the suggested 6.
+function withinRange(actual, target) {
+  const min = Math.max(2, Math.round(target * 0.5));
+  const max = Math.round(target * 1.6) + 3;
+  return actual >= min && actual <= max;
+}
+
+const SCALED_SECTIONS = {
+  quiz: "quiz",
+  flashcards: "flashcards",
+  practice_tasks: "practice",
+  true_false_questions: "trueFalse",
+  short_answer_questions: "shortAnswer",
+};
+
+function validatePackage(pkg, counts) {
   if (!pkg.metadata?.video_title) {
     throw new Error("Missing metadata.video_title");
   }
 
-  if (!Array.isArray(pkg.quiz) || pkg.quiz.length !== 5) {
-    throw new Error("Quiz must contain exactly 5 questions.");
+  for (const [field, countKey] of Object.entries(SCALED_SECTIONS)) {
+    const arr = pkg[field];
+    if (!Array.isArray(arr) || arr.length === 0) {
+      throw new Error(`"${field}" must be a non-empty array.`);
+    }
+    if (!withinRange(arr.length, counts[countKey])) {
+      throw new Error(`"${field}" has ${arr.length} items — expected roughly ${counts[countKey]} for this amount of material.`);
+    }
   }
 
   return pkg;
@@ -115,7 +142,7 @@ export async function generateStudyPackage(input) {
 
     const pkg = extractJson(text);
 
-    validatePackage(pkg);
+    validatePackage(pkg, suggestedCounts(input.transcript.length));
 
     return pkg;
   } catch (err) {
@@ -144,8 +171,9 @@ export async function generateStudyPackageFromSources(input) {
       })
     );
 
+    const totalChars = input.sources.reduce((sum, s) => sum + (s.extracted_text?.length || 0), 0);
     const pkg = extractJson(result.text);
-    validatePackage(pkg);
+    validatePackage(pkg, suggestedCounts(totalChars));
     return pkg;
   } catch (err) {
     console.error("Gemini multi-source generation error:");
@@ -180,16 +208,19 @@ export async function extractImageText(buffer, mimeType) {
   }
 }
 
-const EXACT_LENGTHS = { quiz: 5, practice_tasks: 3, true_false_questions: 5, short_answer_questions: 3 };
-
-function validateSection(section, data) {
+function validateSection(section, data, counts) {
   const key = REGENERATABLE_SECTIONS[section].key;
   const value = data[key];
   if (value === undefined) throw new Error(`Gemini response is missing "${key}".`);
 
-  const exactLength = EXACT_LENGTHS[section];
-  if (exactLength && (!Array.isArray(value) || value.length !== exactLength)) {
-    throw new Error(`"${key}" must contain exactly ${exactLength} items.`);
+  const countKey = SCALED_SECTIONS[section];
+  if (countKey) {
+    if (!Array.isArray(value) || value.length === 0) {
+      throw new Error(`"${key}" must be a non-empty array.`);
+    }
+    if (!withinRange(value.length, counts[countKey])) {
+      throw new Error(`"${key}" has ${value.length} items — expected roughly ${counts[countKey]} for this amount of material.`);
+    }
   }
   return value;
 }
@@ -203,6 +234,7 @@ export async function regenerateSection(pkgDoc, section) {
   }
 
   try {
+    const counts = suggestedCounts(pkgDoc.raw_transcript.length);
     const result = await callGemini(() =>
       ai.models.generateContent({
         model: MODEL,
@@ -212,7 +244,7 @@ export async function regenerateSection(pkgDoc, section) {
           transcript: pkgDoc.raw_transcript,
         }),
         config: {
-          systemInstruction: buildRegenerateSystemPrompt(section),
+          systemInstruction: buildRegenerateSystemPrompt(section, counts),
           responseMimeType: "application/json",
           temperature: 0.5,
         },
@@ -220,7 +252,7 @@ export async function regenerateSection(pkgDoc, section) {
     );
 
     const data = extractJson(result.text);
-    return { key: REGENERATABLE_SECTIONS[section].key, value: validateSection(section, data) };
+    return { key: REGENERATABLE_SECTIONS[section].key, value: validateSection(section, data, counts) };
   } catch (err) {
     console.error(`Gemini regenerate (${section}) error:`);
     console.error(err);

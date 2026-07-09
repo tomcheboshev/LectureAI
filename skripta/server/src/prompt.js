@@ -1,6 +1,39 @@
 // The full study-package generation prompt.
 // buildPrompt() injects the user's input into the template.
 
+// Quiz/flashcard/practice-task/etc. counts scale with how much source
+// material was provided instead of being a fixed number — a one-paragraph
+// transcript shouldn't be forced into 5 quiz questions, and a 10-file upload
+// shouldn't be capped at 5 either. Tiers are keyed by total input character
+// count (transcript length, or the sum of all sources' extracted text).
+const COUNT_TIERS = [
+  { maxChars: 3000, quiz: 4, flashcards: 5, practice: 2, trueFalse: 3, shortAnswer: 2, glossary: 5 },
+  { maxChars: 8000, quiz: 6, flashcards: 8, practice: 3, trueFalse: 5, shortAnswer: 3, glossary: 7 },
+  { maxChars: 18000, quiz: 9, flashcards: 11, practice: 4, trueFalse: 7, shortAnswer: 4, glossary: 9 },
+  { maxChars: 35000, quiz: 12, flashcards: 15, practice: 5, trueFalse: 9, shortAnswer: 5, glossary: 12 },
+  { maxChars: 70000, quiz: 16, flashcards: 20, practice: 6, trueFalse: 11, shortAnswer: 6, glossary: 15 },
+  { maxChars: 150000, quiz: 20, flashcards: 25, practice: 7, trueFalse: 14, shortAnswer: 7, glossary: 18 },
+  { maxChars: Infinity, quiz: 25, flashcards: 30, practice: 8, trueFalse: 16, shortAnswer: 8, glossary: 20 },
+];
+
+export function suggestedCounts(totalChars) {
+  const n = Number(totalChars) || 0;
+  const tier = COUNT_TIERS.find((t) => n <= t.maxChars) || COUNT_TIERS[COUNT_TIERS.length - 1];
+  const { maxChars, ...counts } = tier;
+  return counts;
+}
+
+function targetCountsBlock(counts) {
+  return `TARGET CONTENT COUNTS FOR THIS AMOUNT OF MATERIAL:
+Aim close to these counts — a little above or below is fine, but do NOT default to a small fixed number regardless of how much material was provided. More material should produce more items; less material should produce fewer.
+- quiz: ${counts.quiz} multiple-choice questions
+- flashcards: ${counts.flashcards} flashcards
+- practice_tasks: ${counts.practice} tasks
+- true_false_questions: ${counts.trueFalse} items
+- short_answer_questions: ${counts.shortAnswer} items
+- glossary: up to ${counts.glossary} terms (fewer is fine if the material doesn't have that many meaningful terms)`;
+}
+
 export const SYSTEM_PROMPT = `You are an expert AI assistant specializing in Educational Technology, Learning Science, Instructional Design, Natural Language Processing, and academic tutoring.
 
 Your task is to analyze a raw transcript of an educational video, lecture, tutorial, course lesson, or classroom explanation and generate a complete, structured study package for students.
@@ -186,25 +219,25 @@ DETAILED REQUIREMENTS:
 * Keep this concise and structured for fast revision — do not duplicate the Summary's depth. "main_ideas", "important_details", "formulas_or_rules" (empty array if none), "processes_or_steps" (empty array if none), "comparisons" (empty array if none), "common_misunderstandings", "exam_focus".
 
 6. QUIZ
-* Exactly 5 multiple-choice questions. Each has exactly 4 plausible distinct options, "correctAnswer" exactly matching one option, "explanation", "difficulty", "concept_tested".
-* Difficulty distribution: 1 easy, 3 medium, 1 hard.
+* See the TARGET CONTENT COUNTS block in the input for how many multiple-choice questions to generate (scaled to how much material was provided — do not always generate 5). Each has exactly 4 plausible distinct options, "correctAnswer" exactly matching one option, "explanation", "difficulty", "concept_tested".
+* Difficulty distribution: roughly 20% easy, 60% medium, 20% hard, with at least one of each difficulty when the count allows.
 * Test understanding, application, reasoning. Avoid trivial or transcript-noise questions.
 
 7. FLASHCARDS
-* 5 to 10 flashcards with "front", "back", "category" (definition | formula | comparison | process | example | mistake).
+* See the TARGET CONTENT COUNTS block for how many flashcards to generate. Each has "front", "back", "category" (definition | formula | comparison | process | example | mistake).
 
 8. PRACTICE TASKS
-* Exactly 3 tasks: one easy, one medium, one hard. Each has "task", "difficulty", "hint", "solution", "concepts_used".
+* See the TARGET CONTENT COUNTS block for how many tasks to generate. Distribute difficulty as evenly as possible across easy/medium/hard, with at least one of each when the count allows. Each has "task", "difficulty", "hint", "solution", "concepts_used".
 * Include at least one applied task if the lecture has formulas, code, algorithms, automata, or problem-solving steps.
 
 9. TRUE/FALSE QUESTIONS
-* Exactly 5 items with "statement", boolean "answer", "explanation". Mix of true and false, conceptual, non-trivial.
+* See the TARGET CONTENT COUNTS block for how many items to generate, with "statement", boolean "answer", "explanation". Roughly an even mix of true and false, conceptual, non-trivial.
 
 10. SHORT ANSWER QUESTIONS
-* Exactly 3 items with "question", "expected_answer", "grading_hint". Require explanation, not one-word answers.
+* See the TARGET CONTENT COUNTS block for how many items to generate, with "question", "expected_answer", "grading_hint". Require explanation, not one-word answers.
 
 11. GLOSSARY
-* 5 to 12 important terms with "term" and "meaning". If fewer than 5 meaningful terms exist, include only the available ones.
+* Up to the number of terms given in the TARGET CONTENT COUNTS block, with "term" and "meaning". If fewer meaningful terms exist in the material, include only the available ones — never pad with invented terms.
 
 12. LEARNING OBJECTIVES
 * 3 to 6 objectives starting with action verbs (Explain, Identify, Compare, Apply, Analyze, Solve, Describe, Evaluate).
@@ -225,7 +258,7 @@ DETAILED REQUIREMENTS:
 * Every formula, algorithm, theorem, proof or automaton must have at least one worked example (from the material if possible, otherwise a simple generated one consistent with the material).
 
 QUALITY CONTROL BEFORE FINAL OUTPUT:
-Silently verify: valid JSON, one top-level object, all keys present, no markdown, no code fences, no trailing commas, quiz has exactly 5 questions with 4 options each and matching correctAnswer, exactly 3 practice tasks, exactly 5 true/false, exactly 3 short-answer, exactly 3 key_takeaways, exactly 3 suggested prompts, Summary chapter descriptions are genuinely detailed (not brief), Core Concepts do not duplicate the Summary's depth, Study Notes stay concise, all math/CS notation uses LaTeX delimiters, professional English, grounded in the transcript.
+Silently verify: valid JSON, one top-level object, all keys present, no markdown, no code fences, no trailing commas, quiz/flashcards/practice_tasks/true_false_questions/short_answer_questions/glossary each match the TARGET CONTENT COUNTS given in the input (each quiz question has exactly 4 options with a matching correctAnswer), exactly 3 key_takeaways, exactly 3 suggested prompts, Summary chapter descriptions are genuinely detailed (not brief), Core Concepts do not duplicate the Summary's depth, Study Notes stay concise, all math/CS notation uses LaTeX delimiters, professional English, grounded in the transcript.
 
 FINAL INSTRUCTION:
 Return only the completed JSON object. Do not write anything before or after it.`;
@@ -236,6 +269,8 @@ export function buildUserMessage({ video_title, subject, difficulty, transcript 
   Lecture Title: ${video_title || "Untitled Lecture"}
   Subject/Course: ${subject || "General Academic"}
   Difficulty Preference: ${difficulty || "auto"}
+
+  ${targetCountsBlock(suggestedCounts(transcript.length))}
 
   RAW TRANSCRIPT TO ANALYZE:
   ${transcript}`;
@@ -255,10 +290,13 @@ export function buildMultiSourceUserMessage({ video_title, subject, difficulty, 
   const body = sources
     .map((s, i) => `=== SOURCE ${i}: ${s.filename} ===\n${s.extracted_text}`)
     .join("\n\n");
+  const totalChars = sources.reduce((sum, s) => sum + (s.extracted_text?.length || 0), 0);
   return `INPUT DATA FOR THE STUDY PACKAGE:
   Lecture Title: ${video_title || "Untitled Lecture"}
   Subject/Course: ${subject || "General Academic"}
   Difficulty Preference: ${difficulty || "auto"}
+
+  ${targetCountsBlock(suggestedCounts(totalChars))}
 
   ${sources.length} SOURCE DOCUMENTS TO ANALYZE (in upload order):
   ${body}`;
@@ -281,35 +319,42 @@ export const REGENERATABLE_SECTIONS = {
   },
   quiz: {
     key: "quiz",
-    instructions: `Regenerate the quiz. Return JSON: { "quiz": [ { "question": "String", "options": ["A","B","C","D"], "correctAnswer": "String matching one option exactly", "explanation": "String", "difficulty": "easy | medium | hard", "concept_tested": "String" } ] }. Exactly 5 multiple-choice questions, each with exactly 4 plausible distinct options. Difficulty distribution: 1 easy, 3 medium, 1 hard. Vary the questions from any previous version.`,
+    instructions: (counts) =>
+      `Regenerate the quiz. Return JSON: { "quiz": [ { "question": "String", "options": ["A","B","C","D"], "correctAnswer": "String matching one option exactly", "explanation": "String", "difficulty": "easy | medium | hard", "concept_tested": "String" } ] }. Generate ${counts.quiz} multiple-choice questions (scaled to how much material the lecture covers), each with exactly 4 plausible distinct options. Difficulty distribution: roughly 20% easy, 60% medium, 20% hard, with at least one of each when the count allows. Vary the questions from any previous version.`,
   },
   flashcards: {
     key: "flashcards",
-    instructions: `Regenerate the flashcards. Return JSON: { "flashcards": [ { "front": "String", "back": "String", "category": "definition | formula | comparison | process | example | mistake" } ] }. 5 to 10 flashcards.`,
+    instructions: (counts) =>
+      `Regenerate the flashcards. Return JSON: { "flashcards": [ { "front": "String", "back": "String", "category": "definition | formula | comparison | process | example | mistake" } ] }. Generate ${counts.flashcards} flashcards (scaled to how much material the lecture covers).`,
   },
   practice_tasks: {
     key: "practice_tasks",
-    instructions: `Regenerate the practice tasks. Return JSON: { "practice_tasks": [ { "task": "String", "difficulty": "easy | medium | hard", "hint": "String", "solution": "String", "concepts_used": ["String"] } ] }. Exactly 3 tasks: one easy, one medium, one hard.`,
+    instructions: (counts) =>
+      `Regenerate the practice tasks. Return JSON: { "practice_tasks": [ { "task": "String", "difficulty": "easy | medium | hard", "hint": "String", "solution": "String", "concepts_used": ["String"] } ] }. Generate ${counts.practice} tasks (scaled to how much material the lecture covers), distributed as evenly as possible across easy/medium/hard with at least one of each when the count allows.`,
   },
   true_false_questions: {
     key: "true_false_questions",
-    instructions: `Regenerate the true/false questions. Return JSON: { "true_false_questions": [ { "statement": "String", "answer": true, "explanation": "String" } ] }. Exactly 5 items, a mix of true and false, conceptual and non-trivial.`,
+    instructions: (counts) =>
+      `Regenerate the true/false questions. Return JSON: { "true_false_questions": [ { "statement": "String", "answer": true, "explanation": "String" } ] }. Generate ${counts.trueFalse} items (scaled to how much material the lecture covers), roughly an even mix of true and false, conceptual and non-trivial.`,
   },
   short_answer_questions: {
     key: "short_answer_questions",
-    instructions: `Regenerate the short-answer questions. Return JSON: { "short_answer_questions": [ { "question": "String", "expected_answer": "String", "grading_hint": "String" } ] }. Exactly 3 items requiring explanation, not one-word answers.`,
+    instructions: (counts) =>
+      `Regenerate the short-answer questions. Return JSON: { "short_answer_questions": [ { "question": "String", "expected_answer": "String", "grading_hint": "String" } ] }. Generate ${counts.shortAnswer} items (scaled to how much material the lecture covers) requiring explanation, not one-word answers.`,
   },
   glossary: {
     key: "glossary",
-    instructions: `Regenerate the glossary. Return JSON: { "glossary": [ { "term": "String", "meaning": "String" } ] }. 5 to 12 important terms. If fewer than 5 meaningful terms exist, include only the available ones.`,
+    instructions: (counts) =>
+      `Regenerate the glossary. Return JSON: { "glossary": [ { "term": "String", "meaning": "String" } ] }. Up to ${counts.glossary} important terms (scaled to how much material the lecture covers). If fewer meaningful terms exist, include only the available ones — never pad with invented terms.`,
   },
 };
 
-export function buildRegenerateSystemPrompt(section) {
+export function buildRegenerateSystemPrompt(section, counts) {
   const spec = REGENERATABLE_SECTIONS[section];
+  const instructions = typeof spec.instructions === "function" ? spec.instructions(counts) : spec.instructions;
   return `You are an expert AI assistant specializing in Educational Technology and Instructional Design, helping regenerate one part of an existing study package built from a lecture transcript.
 
-${spec.instructions}
+${instructions}
 
 IMPORTANT OUTPUT RULES:
 * Return only one valid JSON object with exactly the single top-level key described above.
