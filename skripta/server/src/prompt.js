@@ -24,6 +24,8 @@ IMPORTANT OUTPUT RULES:
 * If the transcript is unclear, incomplete, or noisy, still produce the best possible study package using only the reliable parts.
 * Ignore filler words, repeated phrases, greetings, jokes, pauses, and irrelevant conversation unless they are important for understanding the lesson.
 * If timestamps are missing or inconsistent, estimate chapter order and use 0 for the first timestamp.
+* Prioritize educational completeness over brevity. Never omit an important concept, definition, formula, algorithm, table, diagram or process just to make the output shorter.
+* Whenever mathematical expressions, formulas, equations, logical notation, automata, grammars, algorithms, or scientific notation appear, render them as LaTeX wrapped in "$...$" for inline math or "$$...$$" for block/display math (e.g. "$$\\delta: Q \\times \\Sigma \\to Q$$"). Use proper LaTeX for subscripts, superscripts, fractions, summations, matrices, integrals, sets and logic symbols. Represent transition tables as plain-text tables (pipes and dashes) inside the relevant explanation text.
 
 YOUR GOAL:
 Transform the transcript into a complete learning package that helps a student:
@@ -51,7 +53,14 @@ REQUIRED JSON STRUCTURE:
     {
       "timestamp": 0,
       "topic_title": "String",
-      "description": "String",
+      "description": "String — a full, textbook-quality explanation of everything important in this chapter: definitions, formulas, algorithms, processes, tables, diagrams, reasoning. Not a brief overview.",
+      "formulas": [
+        { "name": "String", "formula": "String (LaTeX)", "variables": "String", "when_to_use": "String", "example": "String" }
+      ],
+      "algorithms_or_processes": ["String"],
+      "diagrams_or_tables_explained": ["String"],
+      "code_explained": ["String"],
+      "examples": ["String"],
       "key_points": ["String", "String"]
     }
   ],
@@ -59,8 +68,10 @@ REQUIRED JSON STRUCTURE:
   "core_concepts": [
     {
       "term": "String",
-      "definition": "String",
+      "definition": "String — short explanation",
       "why_it_matters": "String",
+      "related_concepts": ["String"],
+      "common_mistakes": "String",
       "example": "String"
     }
   ],
@@ -78,54 +89,6 @@ REQUIRED JSON STRUCTURE:
     ],
     "common_misunderstandings": ["String", "String"],
     "exam_focus": ["String", "String"]
-  },
-  "comprehensive_notes": [
-    {
-      "topic": "String",
-      "explanation": "String — detailed, textbook-quality explanation of this topic",
-      "formulas": [
-        { "name": "String", "formula": "String", "variables": "String", "when_to_use": "String", "example": "String" }
-      ],
-      "processes_or_algorithms": ["String"],
-      "diagrams_or_tables_explained": ["String"],
-      "code_explained": ["String"]
-    }
-  ],
-  "quick_review": {
-    "key_concepts": ["String"],
-    "important_definitions": ["String"],
-    "essential_formulas": ["String"],
-    "exam_tips": ["String"],
-    "common_mistakes": ["String"],
-    "memory_tricks": ["String"]
-  },
-  "formula_sheet": [
-    {
-      "name": "String",
-      "formula": "String",
-      "variables": "String",
-      "explanation": "String",
-      "when_to_use": "String",
-      "example": "String",
-      "common_mistakes": "String",
-      "related_formulas": ["String"]
-    }
-  ],
-  "definitions": [
-    {
-      "term": "String",
-      "definition": "String",
-      "simple_explanation": "String",
-      "why_it_matters": "String",
-      "related_concepts": ["String"]
-    }
-  ],
-  "exam_focus": {
-    "most_important_topics": ["String"],
-    "frequently_tested_concepts": ["String"],
-    "common_student_mistakes": ["String"],
-    "high_priority_material": ["String"],
-    "typical_exam_questions": ["String"]
   },
   "quiz": [
     {
@@ -198,41 +161,26 @@ DETAILED REQUIREMENTS:
 * "transcript_quality" should be "high", "medium", or "low".
 * "short_description" should summarize the lesson in 1 to 2 sentences.
 
-2. CHAPTER SUMMARY
-* Each chapter has "timestamp" (integer seconds), "topic_title", "description", "key_points" (2-4 points).
-* Create logical chapters: short transcripts 2-4, medium 4-8, long 8-12.
-* Use the actual timeline if timestamps exist; otherwise use 0 for the first chapter.
-* Do not create chapters for greetings or filler.
+2. SUMMARY — THE PRIMARY LEARNING RESOURCE
+* The Summary is not a brief overview — it is the main study resource, transforming the source material into professional study notes a student could learn the exam material from without reopening the original files.
+* Each chapter has "timestamp" (integer seconds), "topic_title", a "description" that thoroughly explains every important definition, process, reasoning step and concept in that chapter (several sentences to full paragraphs, not one-liners), and "key_points" (2-4 short bullets recapping it).
+* "formulas": every formula introduced in this chapter (empty array if none) — name, the formula in LaTeX, a plain-language explanation of its variables, when to use it, and a worked example (use "Not explicitly provided in the transcript." if none exists in the material).
+* "algorithms_or_processes": step-by-step algorithms or procedures described in this chapter (empty array if none).
+* "diagrams_or_tables_explained": if the material describes a diagram, chart, graph or table, explain its meaning in text (empty array if none). For automata, grammars or state machines, include a transition table as plain text and describe each state, transition and acceptance condition.
+* "code_explained": if programming code appears, explain its logic, key lines and complexity (empty array if none).
+* "examples": worked examples for any formula, algorithm, theorem, proof or technical concept in this chapter. Use an example from the material if available; otherwise generate one simple educational example consistent with the material's level (do not introduce unrelated topics). Empty array only if the chapter is purely conceptual with nothing to exemplify.
+* Create logical chapters: short transcripts 2-4, medium 4-8, long 8-12. Use the actual timeline if timestamps exist; otherwise use 0 for the first chapter. Do not create chapters for greetings or filler.
+* Avoid unnecessary repetition between chapters, but never skip important information for the sake of brevity.
 
 3. FULL LECTURE SUMMARY
-* 100 to 200 words, focused on the main teaching value, key concepts, methods, formulas, reasoning patterns.
+* 100 to 200 words, a short abstract of the lecture's main teaching value — not a replacement for the detailed chapter descriptions above.
 
 4. CORE CONCEPTS
-* 3 to 8 concepts central to the lecture, each with "term", "definition", "why_it_matters", "example".
+* 3 to 8 of the most essential concepts — a quick review layer, not a repeat of the Summary's depth. Each has "term", "definition" (short explanation), "why_it_matters", "related_concepts" (empty array if none), "common_mistakes" (a typical student error with this concept, or "None commonly observed." if none applies), and "example".
 * If an example cannot be safely created, use "Not explicitly provided in the transcript."
 
 5. STUDY NOTES
-* "main_ideas", "important_details", "formulas_or_rules" (empty array if none), "processes_or_steps" (empty array if none), "comparisons" (empty array if none), "common_misunderstandings", "exam_focus".
-
-5a. COMPREHENSIVE NOTES
-* These are NOT a summary. Cover every important topic, definition, process, formula, diagram, table and code snippet in the material in enough depth that a student could prepare for an exam without reopening the source.
-* One entry per major topic (typically 3-10 entries). Each "explanation" should be several sentences to a short paragraph, not a one-liner.
-* "formulas" only if the topic has formulas; each formula needs name, the formula itself, a plain-language explanation of its variables, when to use it, and a worked example if one exists in the material (otherwise "Not explicitly provided in the transcript.").
-* "diagrams_or_tables_explained" and "code_explained": if the material describes a diagram, table, chart or code, explain its meaning/logic in text; empty array if none exist.
-
-5b. QUICK REVIEW
-* A condensed, last-minute-study version: only the highest-value key concepts, definitions, formulas, exam tips, common mistakes and memory tricks. Should be skimmable in under 10 minutes — short, punchy items, not full sentences from comprehensive_notes.
-
-5c. FORMULA SHEET
-* Every formula that appears in the material, deduplicated. Empty array if the material has no formulas.
-* Each entry: name, the formula itself, variable meanings, a short explanation, when to use it, a worked example (or "Not explicitly provided in the transcript."), a common mistake, and related formulas if any (empty array if none).
-
-5d. DEFINITIONS
-* Every important term, deeper than the glossary: full definition, a simpler one-sentence rephrasing, why it matters, and related concepts (empty array if none). 5 to 15 entries.
-
-5e. EXAM FOCUS
-* "most_important_topics", "frequently_tested_concepts", "common_student_mistakes", "high_priority_material": short phrases, grounded in what the material emphasizes.
-* "typical_exam_questions": 3-6 plausible exam-style questions (not full solutions) a professor might ask based on this material.
+* Keep this concise and structured for fast revision — do not duplicate the Summary's depth. "main_ideas", "important_details", "formulas_or_rules" (empty array if none), "processes_or_steps" (empty array if none), "comparisons" (empty array if none), "common_misunderstandings", "exam_focus".
 
 6. QUIZ
 * Exactly 5 multiple-choice questions. Each has exactly 4 plausible distinct options, "correctAnswer" exactly matching one option, "explanation", "difficulty", "concept_tested".
@@ -267,8 +215,14 @@ DETAILED REQUIREMENTS:
 15. CHATBOT CONTEXT
 * "lecture_overview" (3-5 sentences), "key_takeaways" (exactly 3), "important_terms", "rules_formulas_or_methods", "student_confusion_points", "suggested_student_prompts" (exactly 3).
 
+16. MATHEMATICAL, SCIENTIFIC & COMPUTER SCIENCE CONTENT
+* Fully support Computer Science and Mathematics material: DFA, NFA, ε-NFA, pushdown automata, context-free grammars, regular expressions, the pumping lemma, Turing machines, parsing, graph algorithms, data structures, dynamic programming, operating systems, computer networks, database systems, AI/ML, and discrete mathematics.
+* Render all math, logic notation, automata and algorithms as LaTeX per the output rules above ("$...$" inline, "$$...$$" block).
+* For automata/formal language content: describe each state, transition and acceptance condition in prose, and include a transition table as a plain-text table wherever appropriate.
+* Every formula, algorithm, theorem, proof or automaton must have at least one worked example (from the material if possible, otherwise a simple generated one consistent with the material).
+
 QUALITY CONTROL BEFORE FINAL OUTPUT:
-Silently verify: valid JSON, one top-level object, all keys present, no markdown, no code fences, no trailing commas, quiz has exactly 5 questions with 4 options each and matching correctAnswer, exactly 3 practice tasks, exactly 5 true/false, exactly 3 short-answer, exactly 3 key_takeaways, exactly 3 suggested prompts, comprehensive_notes actually explains topics in depth (not a summary), formula_sheet and definitions are deduplicated, professional English, grounded in the transcript.
+Silently verify: valid JSON, one top-level object, all keys present, no markdown, no code fences, no trailing commas, quiz has exactly 5 questions with 4 options each and matching correctAnswer, exactly 3 practice tasks, exactly 5 true/false, exactly 3 short-answer, exactly 3 key_takeaways, exactly 3 suggested prompts, Summary chapter descriptions are genuinely detailed (not brief), Core Concepts do not duplicate the Summary's depth, Study Notes stay concise, all math/CS notation uses LaTeX delimiters, professional English, grounded in the transcript.
 
 FINAL INSTRUCTION:
 Return only the completed JSON object. Do not write anything before or after it.`;
@@ -289,11 +243,11 @@ export function buildUserMessage({ video_title, subject, difficulty, transcript 
 export const REGENERATABLE_SECTIONS = {
   summary: {
     key: "summary",
-    instructions: `Regenerate the chapter summary. Return JSON: { "summary": [ { "timestamp": 0, "topic_title": "String", "description": "String", "key_points": ["String", "String"] } ] }. Create logical chapters (short transcripts 2-4, medium 4-8, long 8-12). Use the actual timeline if timestamps exist; otherwise use 0 for the first chapter. Do not create chapters for greetings or filler.`,
+    instructions: `Regenerate the summary — the primary learning resource, not a brief overview. Return JSON: { "summary": [ { "timestamp": 0, "topic_title": "String", "description": "String — full textbook-quality explanation of every important definition, process, formula, algorithm, table, diagram and concept in this chapter", "formulas": [{"name":"String","formula":"String (LaTeX)","variables":"String","when_to_use":"String","example":"String"}], "algorithms_or_processes": ["String"], "diagrams_or_tables_explained": ["String"], "code_explained": ["String"], "examples": ["String"], "key_points": ["String", "String"] } ] }. Create logical chapters (short transcripts 2-4, medium 4-8, long 8-12). Use the actual timeline if timestamps exist; otherwise use 0 for the first chapter. Do not create chapters for greetings or filler. Render math/logic/automata notation as LaTeX ("$...$" / "$$...$$"). Never omit important information for brevity.`,
   },
   core_concepts: {
     key: "core_concepts",
-    instructions: `Regenerate the core concepts. Return JSON: { "core_concepts": [ { "term": "String", "definition": "String", "why_it_matters": "String", "example": "String" } ] }. 3 to 8 concepts central to the lecture. If an example cannot be safely created, use "Not explicitly provided in the transcript."`,
+    instructions: `Regenerate the core concepts — a quick review of the lecture's most essential ideas, not a repeat of the Summary. Return JSON: { "core_concepts": [ { "term": "String", "definition": "String — short explanation", "why_it_matters": "String", "related_concepts": ["String"], "common_mistakes": "String", "example": "String" } ] }. 3 to 8 concepts central to the lecture. If an example cannot be safely created, use "Not explicitly provided in the transcript." If no common mistake applies, use "None commonly observed."`,
   },
   study_notes: {
     key: "study_notes",
@@ -322,26 +276,6 @@ export const REGENERATABLE_SECTIONS = {
   glossary: {
     key: "glossary",
     instructions: `Regenerate the glossary. Return JSON: { "glossary": [ { "term": "String", "meaning": "String" } ] }. 5 to 12 important terms. If fewer than 5 meaningful terms exist, include only the available ones.`,
-  },
-  comprehensive_notes: {
-    key: "comprehensive_notes",
-    instructions: `Regenerate the comprehensive notes. Return JSON: { "comprehensive_notes": [ { "topic": "String", "explanation": "String", "formulas": [{"name":"String","formula":"String","variables":"String","when_to_use":"String","example":"String"}], "processes_or_algorithms": ["String"], "diagrams_or_tables_explained": ["String"], "code_explained": ["String"] } ] }. These are NOT a summary — explain every important topic, definition, process, formula, diagram, table and code snippet in enough depth for exam prep without reopening the source. One entry per major topic (3-10 entries), each explanation a short paragraph. Empty arrays for formulas/processes/diagrams/code that don't apply to a topic.`,
-  },
-  quick_review: {
-    key: "quick_review",
-    instructions: `Regenerate the quick review. Return JSON: { "quick_review": { "key_concepts": ["String"], "important_definitions": ["String"], "essential_formulas": ["String"], "exam_tips": ["String"], "common_mistakes": ["String"], "memory_tricks": ["String"] } }. A condensed last-minute-study version — short, punchy items, readable in under 10 minutes. Empty arrays for anything not applicable.`,
-  },
-  formula_sheet: {
-    key: "formula_sheet",
-    instructions: `Regenerate the formula sheet. Return JSON: { "formula_sheet": [ { "name": "String", "formula": "String", "variables": "String", "explanation": "String", "when_to_use": "String", "example": "String", "common_mistakes": "String", "related_formulas": ["String"] } ] }. Every formula in the material, deduplicated. Empty array if the material has no formulas.`,
-  },
-  definitions: {
-    key: "definitions",
-    instructions: `Regenerate the definitions. Return JSON: { "definitions": [ { "term": "String", "definition": "String", "simple_explanation": "String", "why_it_matters": "String", "related_concepts": ["String"] } ] }. Every important term, 5 to 15 entries, deeper than a glossary — full definition, a simpler one-sentence rephrasing, why it matters, and related concepts (empty array if none).`,
-  },
-  exam_focus: {
-    key: "exam_focus",
-    instructions: `Regenerate the exam focus. Return JSON: { "exam_focus": { "most_important_topics": ["String"], "frequently_tested_concepts": ["String"], "common_student_mistakes": ["String"], "high_priority_material": ["String"], "typical_exam_questions": ["String"] } }. Short phrases grounded in what the material emphasizes; typical_exam_questions should be 3-6 plausible exam-style questions (not full solutions).`,
   },
 };
 
@@ -391,5 +325,5 @@ ${compareWith ? `Compare with: ${compareWith}` : ""}
 
 Task: ${instruction}
 
-Answer directly in 2-6 sentences (or as a short question+answer pair if generating a practice question). Do not repeat the original definition verbatim. Stay grounded in the lecture's subject matter — do not introduce unrelated topics. Plain text only, no markdown headers.`;
+Answer directly in 2-6 sentences (or as a short question+answer pair if generating a practice question). Do not repeat the original definition verbatim. Stay grounded in the lecture's subject matter — do not introduce unrelated topics. Plain text only, no markdown headers. If the answer involves a formula or mathematical/logical notation, render it as LaTeX using "$...$" for inline math or "$$...$$" for block math.`;
 }
