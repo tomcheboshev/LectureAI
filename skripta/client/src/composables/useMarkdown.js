@@ -1,3 +1,5 @@
+import { injectLatex } from "./useLatex.js";
+
 function escapeHtml(str) {
   return str
     .replace(/&/g, "&amp;")
@@ -24,7 +26,7 @@ export function renderMarkdown(text) {
     const isNumberedList = lines.every((l) => /^\s*\d+\.\s+/.test(l));
 
     const inline = (s) =>
-      s
+      injectLatex(s)
         .replace(/`([^`]+)`/g, "<code>$1</code>")
         .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
         .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
