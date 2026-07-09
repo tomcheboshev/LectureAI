@@ -29,12 +29,39 @@ const FRIENDLY_MESSAGES = {
   500: "The AI service is temporarily unavailable. Please try again shortly.",
   503: "The AI model is currently overloaded with requests. Please try again in a minute.",
 };
+const DAILY_QUOTA_MESSAGE =
+  "Your Gemini API key has hit its daily request quota. It resets on Google's schedule (usually ~24h) — try again later, or use a different/upgraded API key.";
+
+// err.message on a 429/5xx is the raw `JSON.stringify(errorBody)` from the
+// SDK (see throwErrorIfNotOK) — parse it back out so we can tell a
+// same-minute rate limit (worth retrying, often with a suggested delay)
+// apart from an exhausted daily quota (no amount of in-request waiting
+// will fix that).
+function parseGeminiErrorBody(err) {
+  try {
+    return JSON.parse(err.message)?.error || null;
+  } catch {
+    return null;
+  }
+}
+
+function isDailyQuotaExhausted(body) {
+  return !!body?.details?.some(
+    (d) => typeof d["@type"] === "string" && d["@type"].includes("QuotaFailure") && d.violations?.some((v) => /perday/i.test(v.quotaId || ""))
+  );
+}
+
+function suggestedRetryDelayMs(body) {
+  const info = body?.details?.find((d) => typeof d["@type"] === "string" && d["@type"].includes("RetryInfo"));
+  const seconds = info?.retryDelay ? parseFloat(info.retryDelay) : null;
+  return Number.isFinite(seconds) ? Math.min(seconds * 1000, 60000) : null;
+}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function callGemini(fn, { retries = 3, baseDelayMs = 1500 } = {}) {
+async function callGemini(fn, { retries = 4, baseDelayMs = 2000 } = {}) {
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -42,10 +69,24 @@ async function callGemini(fn, { retries = 3, baseDelayMs = 1500 } = {}) {
     } catch (err) {
       lastErr = err;
       if (!RETRYABLE_STATUSES.has(err.status) || attempt === retries) break;
-      const delay = baseDelayMs * 2 ** attempt;
+
+      const body = err.status === 429 ? parseGeminiErrorBody(err) : null;
+      if (err.status === 429 && isDailyQuotaExhausted(body)) {
+        break; // retrying within this request can't fix a daily quota
+      }
+      const delay = suggestedRetryDelayMs(body) ?? baseDelayMs * 2 ** attempt;
       console.warn(`Gemini request failed (status ${err.status}), retrying in ${delay}ms (attempt ${attempt + 1}/${retries})...`);
       await sleep(delay);
     }
+  }
+
+  if (lastErr?.status === 429) {
+    const body = parseGeminiErrorBody(lastErr);
+    const message = isDailyQuotaExhausted(body) ? DAILY_QUOTA_MESSAGE : FRIENDLY_MESSAGES[429];
+    const e = new Error(message);
+    e.status = 429;
+    e.userFacing = true;
+    throw e;
   }
   const friendly = FRIENDLY_MESSAGES[lastErr?.status];
   if (friendly) {
