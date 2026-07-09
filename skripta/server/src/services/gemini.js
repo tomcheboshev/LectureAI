@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { jsonrepair } from "jsonrepair";
 import {
   SYSTEM_PROMPT,
   buildUserMessage,
@@ -16,9 +17,13 @@ const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 // LaTeX (now requested in the prompt for formulas/math) is full of single
 // backslashes — \delta, \times, \Sigma — which are invalid inside a JSON
-// string unless doubled. Gemini doesn't always escape them correctly, so
-// repair any backslash that isn't a valid JSON escape sequence before
-// parsing, rather than trusting the model to always get this right.
+// string unless doubled, and Gemini doesn't always escape them correctly.
+// jsonrepair fixes most malformed-JSON issues (raw newlines, trailing
+// commas, stray text around the object) but *drops* unrecognized escapes
+// like "\S" rather than preserving them — which would silently mangle
+// LaTeX commands. So we double any invalid backslash escape ourselves
+// first (preserving the backslash), then hand the result to jsonrepair
+// for everything else.
 function fixInvalidJsonEscapes(text) {
   return text.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, "\\\\");
 }
@@ -29,16 +34,9 @@ function extractJson(text) {
   const cleaned = fixInvalidJsonEscapes(text.trim());
 
   try {
-    return JSON.parse(cleaned);
-  } catch {
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-
-    if (start === -1 || end === -1) {
-      throw new Error("Gemini did not return valid JSON.");
-    }
-
-    return JSON.parse(cleaned.slice(start, end + 1));
+    return JSON.parse(jsonrepair(cleaned));
+  } catch (err) {
+    throw new Error(`Gemini did not return valid JSON: ${err.message}`);
   }
 }
 
