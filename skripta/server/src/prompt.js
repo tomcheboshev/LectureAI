@@ -79,6 +79,54 @@ REQUIRED JSON STRUCTURE:
     "common_misunderstandings": ["String", "String"],
     "exam_focus": ["String", "String"]
   },
+  "comprehensive_notes": [
+    {
+      "topic": "String",
+      "explanation": "String — detailed, textbook-quality explanation of this topic",
+      "formulas": [
+        { "name": "String", "formula": "String", "variables": "String", "when_to_use": "String", "example": "String" }
+      ],
+      "processes_or_algorithms": ["String"],
+      "diagrams_or_tables_explained": ["String"],
+      "code_explained": ["String"]
+    }
+  ],
+  "quick_review": {
+    "key_concepts": ["String"],
+    "important_definitions": ["String"],
+    "essential_formulas": ["String"],
+    "exam_tips": ["String"],
+    "common_mistakes": ["String"],
+    "memory_tricks": ["String"]
+  },
+  "formula_sheet": [
+    {
+      "name": "String",
+      "formula": "String",
+      "variables": "String",
+      "explanation": "String",
+      "when_to_use": "String",
+      "example": "String",
+      "common_mistakes": "String",
+      "related_formulas": ["String"]
+    }
+  ],
+  "definitions": [
+    {
+      "term": "String",
+      "definition": "String",
+      "simple_explanation": "String",
+      "why_it_matters": "String",
+      "related_concepts": ["String"]
+    }
+  ],
+  "exam_focus": {
+    "most_important_topics": ["String"],
+    "frequently_tested_concepts": ["String"],
+    "common_student_mistakes": ["String"],
+    "high_priority_material": ["String"],
+    "typical_exam_questions": ["String"]
+  },
   "quiz": [
     {
       "question": "String",
@@ -166,6 +214,26 @@ DETAILED REQUIREMENTS:
 5. STUDY NOTES
 * "main_ideas", "important_details", "formulas_or_rules" (empty array if none), "processes_or_steps" (empty array if none), "comparisons" (empty array if none), "common_misunderstandings", "exam_focus".
 
+5a. COMPREHENSIVE NOTES
+* These are NOT a summary. Cover every important topic, definition, process, formula, diagram, table and code snippet in the material in enough depth that a student could prepare for an exam without reopening the source.
+* One entry per major topic (typically 3-10 entries). Each "explanation" should be several sentences to a short paragraph, not a one-liner.
+* "formulas" only if the topic has formulas; each formula needs name, the formula itself, a plain-language explanation of its variables, when to use it, and a worked example if one exists in the material (otherwise "Not explicitly provided in the transcript.").
+* "diagrams_or_tables_explained" and "code_explained": if the material describes a diagram, table, chart or code, explain its meaning/logic in text; empty array if none exist.
+
+5b. QUICK REVIEW
+* A condensed, last-minute-study version: only the highest-value key concepts, definitions, formulas, exam tips, common mistakes and memory tricks. Should be skimmable in under 10 minutes — short, punchy items, not full sentences from comprehensive_notes.
+
+5c. FORMULA SHEET
+* Every formula that appears in the material, deduplicated. Empty array if the material has no formulas.
+* Each entry: name, the formula itself, variable meanings, a short explanation, when to use it, a worked example (or "Not explicitly provided in the transcript."), a common mistake, and related formulas if any (empty array if none).
+
+5d. DEFINITIONS
+* Every important term, deeper than the glossary: full definition, a simpler one-sentence rephrasing, why it matters, and related concepts (empty array if none). 5 to 15 entries.
+
+5e. EXAM FOCUS
+* "most_important_topics", "frequently_tested_concepts", "common_student_mistakes", "high_priority_material": short phrases, grounded in what the material emphasizes.
+* "typical_exam_questions": 3-6 plausible exam-style questions (not full solutions) a professor might ask based on this material.
+
 6. QUIZ
 * Exactly 5 multiple-choice questions. Each has exactly 4 plausible distinct options, "correctAnswer" exactly matching one option, "explanation", "difficulty", "concept_tested".
 * Difficulty distribution: 1 easy, 3 medium, 1 hard.
@@ -200,7 +268,7 @@ DETAILED REQUIREMENTS:
 * "lecture_overview" (3-5 sentences), "key_takeaways" (exactly 3), "important_terms", "rules_formulas_or_methods", "student_confusion_points", "suggested_student_prompts" (exactly 3).
 
 QUALITY CONTROL BEFORE FINAL OUTPUT:
-Silently verify: valid JSON, one top-level object, all keys present, no markdown, no code fences, no trailing commas, quiz has exactly 5 questions with 4 options each and matching correctAnswer, exactly 3 practice tasks, exactly 5 true/false, exactly 3 short-answer, exactly 3 key_takeaways, exactly 3 suggested prompts, professional English, grounded in the transcript.
+Silently verify: valid JSON, one top-level object, all keys present, no markdown, no code fences, no trailing commas, quiz has exactly 5 questions with 4 options each and matching correctAnswer, exactly 3 practice tasks, exactly 5 true/false, exactly 3 short-answer, exactly 3 key_takeaways, exactly 3 suggested prompts, comprehensive_notes actually explains topics in depth (not a summary), formula_sheet and definitions are deduplicated, professional English, grounded in the transcript.
 
 FINAL INSTRUCTION:
 Return only the completed JSON object. Do not write anything before or after it.`;
@@ -254,6 +322,26 @@ export const REGENERATABLE_SECTIONS = {
   glossary: {
     key: "glossary",
     instructions: `Regenerate the glossary. Return JSON: { "glossary": [ { "term": "String", "meaning": "String" } ] }. 5 to 12 important terms. If fewer than 5 meaningful terms exist, include only the available ones.`,
+  },
+  comprehensive_notes: {
+    key: "comprehensive_notes",
+    instructions: `Regenerate the comprehensive notes. Return JSON: { "comprehensive_notes": [ { "topic": "String", "explanation": "String", "formulas": [{"name":"String","formula":"String","variables":"String","when_to_use":"String","example":"String"}], "processes_or_algorithms": ["String"], "diagrams_or_tables_explained": ["String"], "code_explained": ["String"] } ] }. These are NOT a summary — explain every important topic, definition, process, formula, diagram, table and code snippet in enough depth for exam prep without reopening the source. One entry per major topic (3-10 entries), each explanation a short paragraph. Empty arrays for formulas/processes/diagrams/code that don't apply to a topic.`,
+  },
+  quick_review: {
+    key: "quick_review",
+    instructions: `Regenerate the quick review. Return JSON: { "quick_review": { "key_concepts": ["String"], "important_definitions": ["String"], "essential_formulas": ["String"], "exam_tips": ["String"], "common_mistakes": ["String"], "memory_tricks": ["String"] } }. A condensed last-minute-study version — short, punchy items, readable in under 10 minutes. Empty arrays for anything not applicable.`,
+  },
+  formula_sheet: {
+    key: "formula_sheet",
+    instructions: `Regenerate the formula sheet. Return JSON: { "formula_sheet": [ { "name": "String", "formula": "String", "variables": "String", "explanation": "String", "when_to_use": "String", "example": "String", "common_mistakes": "String", "related_formulas": ["String"] } ] }. Every formula in the material, deduplicated. Empty array if the material has no formulas.`,
+  },
+  definitions: {
+    key: "definitions",
+    instructions: `Regenerate the definitions. Return JSON: { "definitions": [ { "term": "String", "definition": "String", "simple_explanation": "String", "why_it_matters": "String", "related_concepts": ["String"] } ] }. Every important term, 5 to 15 entries, deeper than a glossary — full definition, a simpler one-sentence rephrasing, why it matters, and related concepts (empty array if none).`,
+  },
+  exam_focus: {
+    key: "exam_focus",
+    instructions: `Regenerate the exam focus. Return JSON: { "exam_focus": { "most_important_topics": ["String"], "frequently_tested_concepts": ["String"], "common_student_mistakes": ["String"], "high_priority_material": ["String"], "typical_exam_questions": ["String"] } }. Short phrases grounded in what the material emphasizes; typical_exam_questions should be 3-6 plausible exam-style questions (not full solutions).`,
   },
 };
 
