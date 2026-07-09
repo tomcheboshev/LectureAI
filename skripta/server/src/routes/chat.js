@@ -48,7 +48,7 @@ router.post("/:id", async (req, res) => {
     res.json({ reply });
   } catch (err) {
     console.error("Chat failed:", err);
-    res.status(500).json({ error: "Chat failed. Try again." });
+    res.status(err.status || 500).json({ error: err.userFacing ? err.message : "Chat failed. Try again." });
   }
 });
 

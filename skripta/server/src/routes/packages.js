@@ -57,7 +57,7 @@ router.post("/generate", async (req, res) => {
     res.status(201).json(doc);
   } catch (err) {
     console.error("Generation failed:", err);
-    res.status(500).json({ error: "Generation failed. Check the server logs and try again." });
+    res.status(err.status || 500).json({ error: err.userFacing ? err.message : "Generation failed. Check the server logs and try again." });
   }
 });
 
@@ -241,7 +241,7 @@ router.post("/:id/regenerate", async (req, res) => {
   } catch (err) {
     if (err.name === "CastError") return res.status(400).json({ error: "Invalid id." });
     console.error("Regeneration failed:", err);
-    res.status(500).json({ error: "Regeneration failed. Check the server logs and try again." });
+    res.status(err.status || 500).json({ error: err.userFacing ? err.message : "Regeneration failed. Check the server logs and try again." });
   }
 });
 
@@ -264,7 +264,7 @@ router.post("/:id/explain", async (req, res) => {
   } catch (err) {
     if (err.name === "CastError") return res.status(400).json({ error: "Invalid id." });
     console.error("Explain failed:", err);
-    res.status(500).json({ error: "Explain failed. Check the server logs and try again." });
+    res.status(err.status || 500).json({ error: err.userFacing ? err.message : "Explain failed. Check the server logs and try again." });
   }
 });
 

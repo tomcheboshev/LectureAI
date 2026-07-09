@@ -17,6 +17,45 @@ const ai = new GoogleGenAI({
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
+// Gemini occasionally returns 429 (rate limited) or 500/503 (overloaded) for
+// reasons unrelated to our request — retrying with backoff clears most of
+// them without the user having to resubmit the whole form. If retries are
+// exhausted we rewrite the error into a short, user-facing message instead
+// of leaking the raw `{"error":{"code":503,...}}` JSON blob from the SDK.
+const RETRYABLE_STATUSES = new Set([429, 500, 503]);
+const FRIENDLY_MESSAGES = {
+  429: "The AI model hit a rate limit. Please wait a moment and try again.",
+  500: "The AI service is temporarily unavailable. Please try again shortly.",
+  503: "The AI model is currently overloaded with requests. Please try again in a minute.",
+};
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function callGemini(fn, { retries = 3, baseDelayMs = 1500 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!RETRYABLE_STATUSES.has(err.status) || attempt === retries) break;
+      const delay = baseDelayMs * 2 ** attempt;
+      console.warn(`Gemini request failed (status ${err.status}), retrying in ${delay}ms (attempt ${attempt + 1}/${retries})...`);
+      await sleep(delay);
+    }
+  }
+  const friendly = FRIENDLY_MESSAGES[lastErr?.status];
+  if (friendly) {
+    const e = new Error(friendly);
+    e.status = lastErr.status;
+    e.userFacing = true;
+    throw e;
+  }
+  throw lastErr;
+}
+
 // LaTeX (now requested in the prompt for formulas/math) is full of single
 // backslashes — \delta, \times, \Sigma — which are invalid inside a JSON
 // string unless doubled, and Gemini doesn't always escape them correctly.
@@ -58,17 +97,19 @@ export async function generateStudyPackage(input) {
   try {
     console.log("Generating study package...");
 
-    const result = await ai.models.generateContent({
-      model: MODEL,
+    const result = await callGemini(() =>
+      ai.models.generateContent({
+        model: MODEL,
 
-      contents: buildUserMessage(input),
+        contents: buildUserMessage(input),
 
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        responseMimeType: "application/json",
-        temperature: 0.3,
-      },
-    });
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: "application/json",
+          temperature: 0.3,
+        },
+      })
+    );
 
     const text = result.text;
 
@@ -89,17 +130,19 @@ export async function generateStudyPackageFromSources(input) {
   try {
     console.log(`Generating study package from ${input.sources.length} source(s)...`);
 
-    const result = await ai.models.generateContent({
-      model: MODEL,
+    const result = await callGemini(() =>
+      ai.models.generateContent({
+        model: MODEL,
 
-      contents: buildMultiSourceUserMessage(input),
+        contents: buildMultiSourceUserMessage(input),
 
-      config: {
-        systemInstruction: SYSTEM_PROMPT + "\n" + MULTI_SOURCE_INSTRUCTIONS,
-        responseMimeType: "application/json",
-        temperature: 0.3,
-      },
-    });
+        config: {
+          systemInstruction: SYSTEM_PROMPT + "\n" + MULTI_SOURCE_INSTRUCTIONS,
+          responseMimeType: "application/json",
+          temperature: 0.3,
+        },
+      })
+    );
 
     const pkg = extractJson(result.text);
     validatePackage(pkg);
@@ -113,20 +156,22 @@ export async function generateStudyPackageFromSources(input) {
 
 export async function extractImageText(buffer, mimeType) {
   try {
-    const result = await ai.models.generateContent({
-      model: MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: "Transcribe every piece of text visible in this image (including handwriting), and describe any diagrams, tables, charts or formulas in detail. If this looks like a slide, include its title and all bullet points in order. Plain text output, no markdown.",
-            },
-            { inlineData: { mimeType, data: buffer.toString("base64") } },
-          ],
-        },
-      ],
-    });
+    const result = await callGemini(() =>
+      ai.models.generateContent({
+        model: MODEL,
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: "Transcribe every piece of text visible in this image (including handwriting), and describe any diagrams, tables, charts or formulas in detail. If this looks like a slide, include its title and all bullet points in order. Plain text output, no markdown.",
+              },
+              { inlineData: { mimeType, data: buffer.toString("base64") } },
+            ],
+          },
+        ],
+      })
+    );
     return result.text;
   } catch (err) {
     console.error("Gemini image extraction error:");
@@ -158,19 +203,21 @@ export async function regenerateSection(pkgDoc, section) {
   }
 
   try {
-    const result = await ai.models.generateContent({
-      model: MODEL,
-      contents: buildRegenerateUserMessage({
-        video_title: pkgDoc.metadata?.video_title,
-        subject: pkgDoc.metadata?.subject,
-        transcript: pkgDoc.raw_transcript,
-      }),
-      config: {
-        systemInstruction: buildRegenerateSystemPrompt(section),
-        responseMimeType: "application/json",
-        temperature: 0.5,
-      },
-    });
+    const result = await callGemini(() =>
+      ai.models.generateContent({
+        model: MODEL,
+        contents: buildRegenerateUserMessage({
+          video_title: pkgDoc.metadata?.video_title,
+          subject: pkgDoc.metadata?.subject,
+          transcript: pkgDoc.raw_transcript,
+        }),
+        config: {
+          systemInstruction: buildRegenerateSystemPrompt(section),
+          responseMimeType: "application/json",
+          temperature: 0.5,
+        },
+      })
+    );
 
     const data = extractJson(result.text);
     return { key: REGENERATABLE_SECTIONS[section].key, value: validateSection(section, data) };
@@ -192,11 +239,13 @@ export async function explainConcept(pkgDoc, { term, definition, action, compare
       compareWith,
     });
 
-    const result = await ai.models.generateContent({
-      model: MODEL,
-      contents: prompt,
-      config: { temperature: 0.5 },
-    });
+    const result = await callGemini(() =>
+      ai.models.generateContent({
+        model: MODEL,
+        contents: prompt,
+        config: { temperature: 0.5 },
+      })
+    );
 
     return result.text;
   } catch (err) {
@@ -239,16 +288,18 @@ ${messages
   .join("\n")}
 `;
 
-    const result = await ai.models.generateContent({
-      model: MODEL,
+    const result = await callGemini(() =>
+      ai.models.generateContent({
+        model: MODEL,
 
-      contents: prompt,
+        contents: prompt,
 
-      config: {
-        systemInstruction:
-          "You are an AI tutor. Answer ONLY questions about this lecture.",
-      },
-    });
+        config: {
+          systemInstruction:
+            "You are an AI tutor. Answer ONLY questions about this lecture.",
+        },
+      })
+    );
 
     return result.text;
   } catch (err) {
