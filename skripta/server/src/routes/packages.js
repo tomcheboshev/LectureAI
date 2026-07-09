@@ -161,12 +161,15 @@ async function runFilesGeneration(id, { files, video_title, subject, difficulty 
   try {
     await StudyPackage.updateOne({ _id: id }, { status: "extracting", progress: 10 });
 
-    const extracted = await Promise.all(
-      files.map(async (file, order) => {
-        const { text, file_type } = await extractFileText(file);
-        return { filename: file.originalname, file_type, order, extracted_text: text };
-      })
-    );
+    // Extracted one at a time rather than in parallel — image files call
+    // Gemini for OCR/description, and firing several of those concurrently
+    // is a fast way to blow through the API key's per-minute rate limit on
+    // its own, before generation even starts.
+    const extracted = [];
+    for (let order = 0; order < files.length; order++) {
+      const { text, file_type } = await extractFileText(files[order]);
+      extracted.push({ filename: files[order].originalname, file_type, order, extracted_text: text });
+    }
 
     for (const s of extracted) {
       if (!s.extracted_text || s.extracted_text.trim().length < 20) {
