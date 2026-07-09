@@ -1,7 +1,8 @@
 import { Router } from "express";
 import StudyPackage from "../models/StudyPackage.js";
 // Промена: Го менуваме импортот да покажува кон новата gemini.js услуга
-import { generateStudyPackage } from "../services/gemini.js";
+import { generateStudyPackage, regenerateSection, explainConcept } from "../services/gemini.js";
+import { REGENERATABLE_SECTIONS, EXPLAIN_ACTIONS } from "../prompt.js";
 
 const router = Router();
 
@@ -61,6 +62,52 @@ router.get("/:id", async (req, res) => {
     res.json(doc);
   } catch {
     res.status(400).json({ error: "Invalid id." });
+  }
+});
+
+// POST /api/packages/:id/regenerate  { section }
+router.post("/:id/regenerate", async (req, res) => {
+  try {
+    const { section } = req.body;
+    if (!REGENERATABLE_SECTIONS[section]) {
+      return res.status(400).json({ error: `Unknown section "${section}".` });
+    }
+
+    const doc = await StudyPackage.findById(req.params.id).select("+raw_transcript");
+    if (!doc) return res.status(404).json({ error: "Study package not found." });
+
+    const { key, value } = await regenerateSection(doc, section);
+    doc.set(key, value);
+    await doc.save();
+
+    res.json({ [key]: value });
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id." });
+    console.error("Regeneration failed:", err);
+    res.status(500).json({ error: "Regeneration failed. Check the server logs and try again." });
+  }
+});
+
+// POST /api/packages/:id/explain  { term, definition, action, compareWith? }
+router.post("/:id/explain", async (req, res) => {
+  try {
+    const { term, definition, action, compareWith } = req.body;
+    if (!term || typeof term !== "string") {
+      return res.status(400).json({ error: "term is required." });
+    }
+    if (!EXPLAIN_ACTIONS[action]) {
+      return res.status(400).json({ error: `Unknown action "${action}".` });
+    }
+
+    const doc = await StudyPackage.findById(req.params.id).lean();
+    if (!doc) return res.status(404).json({ error: "Study package not found." });
+
+    const result = await explainConcept(doc, { term, definition, action, compareWith });
+    res.json({ result });
+  } catch (err) {
+    if (err.name === "CastError") return res.status(400).json({ error: "Invalid id." });
+    console.error("Explain failed:", err);
+    res.status(500).json({ error: "Explain failed. Check the server logs and try again." });
   }
 });
 

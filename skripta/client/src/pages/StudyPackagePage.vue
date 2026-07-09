@@ -26,9 +26,21 @@
           <span class="badge">transcript: {{ pkg.metadata.transcript_quality }}</span>
         </div>
       </div>
-      <button class="shrink-0 inline-flex items-center gap-1.5 rounded-lg border-2 border-danger/30 text-danger px-3.5 py-2 text-sm font-semibold hover:bg-danger/10 transition" @click="confirmDelete = true">
-        <TrashIcon class="w-4 h-4" /> Delete
-      </button>
+      <div class="shrink-0 flex items-center gap-2 relative">
+        <button class="inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-200 dark:border-border-dark px-3.5 py-2 text-sm font-semibold hover:border-slate-400 transition" @click="exportOpen = !exportOpen">
+          <ArrowDownTrayIcon class="w-4 h-4" /> Export
+        </button>
+        <Transition name="fade">
+          <div v-if="exportOpen" class="absolute right-0 top-11 z-20 w-44 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark shadow-lg py-1.5">
+            <button class="w-full text-left px-3.5 py-2 text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition" @click="doExport('md')">Markdown (.md)</button>
+            <button class="w-full text-left px-3.5 py-2 text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition" @click="doExport('json')">JSON (.json)</button>
+            <button class="w-full text-left px-3.5 py-2 text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition" @click="doExport('print')">Print / Save as PDF</button>
+          </div>
+        </Transition>
+        <button class="inline-flex items-center gap-1.5 rounded-lg border-2 border-danger/30 text-danger px-3.5 py-2 text-sm font-semibold hover:bg-danger/10 transition" @click="confirmDelete = true">
+          <TrashIcon class="w-4 h-4" /> Delete
+        </button>
+      </div>
     </div>
 
     <div class="flex flex-col lg:flex-row gap-6">
@@ -55,7 +67,10 @@
               <h3 class="font-display font-bold mb-2">Full lecture summary</h3>
               <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">{{ pkg.full_lecture_summary }}</p>
             </div>
-            <h3 class="font-display font-bold text-lg">Chapters</h3>
+            <div class="flex items-center justify-between">
+              <h3 class="font-display font-bold text-lg">Chapters</h3>
+              <RegenerateButton :package-id="pkg._id" section="summary" @regenerated="(d) => (pkg.summary = d.summary)" />
+            </div>
             <div class="relative flex flex-col gap-5 pl-6 before:content-[''] before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-slate-200 dark:before:bg-border-dark">
               <div v-for="(c, i) in pkg.summary" :key="i" class="relative">
                 <span class="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/15"></span>
@@ -70,17 +85,26 @@
           </div>
 
           <!-- CONCEPTS -->
-          <div v-else-if="tab === 'concepts'" key="concepts" class="grid sm:grid-cols-2 gap-4">
-            <div v-for="c in pkg.core_concepts" :key="c.term" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-              <h3 class="font-display font-bold text-primary mb-1.5">{{ c.term }}</h3>
-              <p class="text-sm text-slate-700 dark:text-slate-200 mb-2">{{ c.definition }}</p>
-              <p class="text-sm text-slate-500 dark:text-slate-400 mb-2"><strong class="text-slate-600 dark:text-slate-300">Why it matters:</strong> {{ c.why_it_matters }}</p>
-              <p class="font-mono text-xs bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-slate-500 dark:text-slate-400">{{ c.example }}</p>
+          <div v-else-if="tab === 'concepts'" key="concepts" class="flex flex-col gap-4">
+            <div class="flex justify-end">
+              <RegenerateButton :package-id="pkg._id" section="core_concepts" @regenerated="(d) => (pkg.core_concepts = d.core_concepts)" />
+            </div>
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div v-for="c in pkg.core_concepts" :key="c.term" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                <h3 class="font-display font-bold text-primary mb-1.5">{{ c.term }}</h3>
+                <p class="text-sm text-slate-700 dark:text-slate-200 mb-2">{{ c.definition }}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-2"><strong class="text-slate-600 dark:text-slate-300">Why it matters:</strong> {{ c.why_it_matters }}</p>
+                <p class="font-mono text-xs bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-slate-500 dark:text-slate-400">{{ c.example }}</p>
+                <ConceptExplainer :package-id="pkg._id" :term="c.term" :definition="c.definition" />
+              </div>
             </div>
           </div>
 
           <!-- NOTES -->
           <div v-else-if="tab === 'notes'" key="notes" class="flex flex-col gap-4">
+            <div class="flex justify-end">
+              <RegenerateButton :package-id="pkg._id" section="study_notes" @regenerated="(d) => (pkg.study_notes = d.study_notes)" />
+            </div>
             <div class="grid sm:grid-cols-2 gap-4">
               <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
                 <h3 class="font-display font-bold mb-2">Main ideas</h3>
@@ -117,9 +141,12 @@
 
           <!-- GLOSSARY -->
           <div v-else-if="tab === 'glossary'" key="glossary" class="flex flex-col gap-4">
-            <div class="relative max-w-xs">
-              <MagnifyingGlassIcon class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input v-model="glossaryQuery" placeholder="Search terms…" class="w-full rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+            <div class="flex items-center justify-between gap-3">
+              <div class="relative max-w-xs flex-1">
+                <MagnifyingGlassIcon class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input v-model="glossaryQuery" placeholder="Search terms…" class="w-full rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40" />
+              </div>
+              <RegenerateButton :package-id="pkg._id" section="glossary" @regenerated="(d) => (pkg.glossary = d.glossary)" />
             </div>
             <dl class="rounded-2xl border border-slate-200 dark:border-border-dark divide-y divide-slate-100 dark:divide-border-dark">
               <div v-for="g in filteredGlossary" :key="g.term" class="px-5 py-3.5">
@@ -131,13 +158,26 @@
           </div>
 
           <!-- QUIZ -->
-          <div v-else-if="tab === 'quiz'" key="quiz"><QuizPlayer :quiz="pkg.quiz" /></div>
+          <div v-else-if="tab === 'quiz'" key="quiz" class="max-w-xl mx-auto">
+            <div class="flex justify-end mb-3">
+              <RegenerateButton :package-id="pkg._id" section="quiz" @regenerated="(d) => { pkg.quiz = d.quiz; quizKey++; }" />
+            </div>
+            <QuizPlayer :key="quizKey" :quiz="pkg.quiz" />
+          </div>
 
           <!-- FLASHCARDS -->
-          <div v-else-if="tab === 'flashcards'" key="flashcards"><FlashcardDeck :flashcards="pkg.flashcards" /></div>
+          <div v-else-if="tab === 'flashcards'" key="flashcards" class="max-w-xl mx-auto">
+            <div class="flex justify-end mb-3">
+              <RegenerateButton :package-id="pkg._id" section="flashcards" @regenerated="(d) => { pkg.flashcards = d.flashcards; flashcardsKey++; }" />
+            </div>
+            <FlashcardDeck :key="flashcardsKey" :flashcards="pkg.flashcards" />
+          </div>
 
           <!-- PRACTICE TASKS -->
           <div v-else-if="tab === 'practice'" key="practice" class="flex flex-col gap-3">
+            <div class="flex justify-end">
+              <RegenerateButton :package-id="pkg._id" section="practice_tasks" @regenerated="(d) => (pkg.practice_tasks = d.practice_tasks)" />
+            </div>
             <div v-for="(t, i) in pkg.practice_tasks" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
               <span class="badge mb-2" :class="diffTint(t.difficulty)">{{ t.difficulty }}</span>
               <p class="font-medium text-slate-900 dark:text-white mb-2">{{ t.task }}</p>
@@ -158,10 +198,18 @@
           </div>
 
           <!-- TRUE/FALSE -->
-          <div v-else-if="tab === 'truefalse'" key="truefalse"><TrueFalseQuiz :questions="pkg.true_false_questions" /></div>
+          <div v-else-if="tab === 'truefalse'" key="truefalse">
+            <div class="flex justify-end mb-3">
+              <RegenerateButton :package-id="pkg._id" section="true_false_questions" @regenerated="(d) => { pkg.true_false_questions = d.true_false_questions; trueFalseKey++; }" />
+            </div>
+            <TrueFalseQuiz :key="trueFalseKey" :questions="pkg.true_false_questions" />
+          </div>
 
           <!-- SHORT ANSWER -->
           <div v-else-if="tab === 'shortanswer'" key="shortanswer" class="flex flex-col gap-3">
+            <div class="flex justify-end">
+              <RegenerateButton :package-id="pkg._id" section="short_answer_questions" @regenerated="(d) => (pkg.short_answer_questions = d.short_answer_questions)" />
+            </div>
             <div v-for="(q, i) in pkg.short_answer_questions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
               <p class="font-medium text-slate-900 dark:text-white mb-2">{{ q.question }}</p>
               <textarea v-model="shortAnswerDrafts[i]" rows="2" placeholder="Type your answer, then reveal the expected one…" class="w-full rounded-lg border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 mb-2"></textarea>
@@ -221,17 +269,20 @@
 import { ref, reactive, computed, onMounted } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import {
-  ArrowLeftIcon, TrashIcon, MagnifyingGlassIcon, ChevronRightIcon,
+  ArrowLeftIcon, TrashIcon, MagnifyingGlassIcon, ChevronRightIcon, ArrowDownTrayIcon,
   FireIcon, CheckCircleIcon, BookOpenIcon, AcademicCapIcon, DocumentTextIcon,
   QueueListIcon, QuestionMarkCircleIcon, Squares2X2Icon, ClipboardDocumentCheckIcon,
   CheckIcon, PencilSquareIcon, MapIcon, ChatBubbleLeftRightIcon,
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
+import { downloadMarkdown, downloadJson, openPrintView } from "../composables/useExport.js";
 import QuizPlayer from "../components/QuizPlayer.vue";
 import FlashcardDeck from "../components/FlashcardDeck.vue";
 import TrueFalseQuiz from "../components/TrueFalseQuiz.vue";
 import ChatPanel from "../components/ChatPanel.vue";
+import ConceptExplainer from "../components/ConceptExplainer.vue";
+import RegenerateButton from "../components/RegenerateButton.vue";
 import Modal from "../components/ui/Modal.vue";
 
 const props = defineProps({ id: { type: String, required: true } });
@@ -245,6 +296,10 @@ const tab = ref("summary");
 const confirmDelete = ref(false);
 const glossaryQuery = ref("");
 const shortAnswerDrafts = reactive({});
+const exportOpen = ref(false);
+const quizKey = ref(0);
+const flashcardsKey = ref(0);
+const trueFalseKey = ref(0);
 
 const tabs = [
   { id: "summary", label: "Summary", icon: BookOpenIcon },
@@ -288,6 +343,13 @@ function diffTint(d) {
   if (d === "easy") return "badge-success";
   if (d === "hard") return "badge-danger";
   return "badge-warning";
+}
+
+function doExport(format) {
+  exportOpen.value = false;
+  if (format === "md") downloadMarkdown(pkg.value);
+  else if (format === "json") downloadJson(pkg.value);
+  else openPrintView(pkg.value);
 }
 
 async function remove() {

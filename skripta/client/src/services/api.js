@@ -15,5 +15,9 @@ export const api = {
   getPackage: (id) => http.get(`/packages/${id}`).then((r) => r.data),
   deletePackage: (id) => http.delete(`/packages/${id}`).then((r) => r.data),
   generate: (payload) => http.post("/packages/generate", payload).then((r) => r.data),
+  regenerateSection: (id, section) => http.post(`/packages/${id}/regenerate`, { section }).then((r) => r.data),
+  explainConcept: (id, payload) => http.post(`/packages/${id}/explain`, payload).then((r) => r.data),
   chat: (id, messages) => http.post(`/chat/${id}`, { messages }).then((r) => r.data),
+  getChatHistory: (id) => http.get(`/chat/${id}`).then((r) => r.data),
+  clearChatHistory: (id) => http.delete(`/chat/${id}`).then((r) => r.data),
 };

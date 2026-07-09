@@ -11,7 +11,11 @@
     </div>
 
     <div ref="scrollEl" class="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-5">
-      <div v-if="messages.length === 0" class="flex flex-col gap-2">
+      <div v-if="loadingHistory" class="flex flex-col gap-3">
+        <div class="skeleton h-10 w-2/3 rounded-2xl"></div>
+        <div class="skeleton h-10 w-1/2 rounded-2xl self-end"></div>
+      </div>
+      <div v-else-if="messages.length === 0" class="flex flex-col gap-2">
         <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">Ask anything about this lecture. Try one of these:</p>
         <button
           v-for="p in suggestedPrompts"
@@ -59,9 +63,10 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from "vue";
+import { ref, onMounted, nextTick } from "vue";
 import { SparklesIcon, PaperAirplaneIcon } from "@heroicons/vue/24/solid";
 import { api } from "../services/api.js";
+import { useToastStore } from "../stores/toast.js";
 import { renderMarkdown } from "../composables/useMarkdown.js";
 import TypingIndicator from "./TypingIndicator.vue";
 
@@ -70,11 +75,25 @@ const props = defineProps({
   suggestedPrompts: { type: Array, default: () => [] },
 });
 
+const toast = useToastStore();
 const messages = ref([]);
 const draft = ref("");
 const thinking = ref(false);
+const loadingHistory = ref(true);
 const error = ref("");
 const scrollEl = ref(null);
+
+onMounted(async () => {
+  try {
+    const { messages: history } = await api.getChatHistory(props.packageId);
+    messages.value = history;
+    if (history.length) scrollDown();
+  } catch {
+    // No history yet, or it failed to load — start with a blank conversation.
+  } finally {
+    loadingHistory.value = false;
+  }
+});
 
 async function send(text) {
   const content = text.trim();
@@ -97,9 +116,16 @@ async function send(text) {
   }
 }
 
-function clearChat() {
+async function clearChat() {
+  const previous = messages.value;
   messages.value = [];
   error.value = "";
+  try {
+    await api.clearChatHistory(props.packageId);
+  } catch (e) {
+    messages.value = previous;
+    toast.error(e.message);
+  }
 }
 
 async function scrollDown() {

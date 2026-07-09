@@ -1,5 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
-import { SYSTEM_PROMPT, buildUserMessage } from "../prompt.js";
+import {
+  SYSTEM_PROMPT,
+  buildUserMessage,
+  REGENERATABLE_SECTIONS,
+  buildRegenerateSystemPrompt,
+  buildRegenerateUserMessage,
+  buildExplainPrompt,
+} from "../prompt.js";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -65,6 +72,77 @@ export async function generateStudyPackage(input) {
     console.error("Gemini generation error:");
     console.error(err);
 
+    throw err;
+  }
+}
+
+const EXACT_LENGTHS = { quiz: 5, practice_tasks: 3, true_false_questions: 5, short_answer_questions: 3 };
+
+function validateSection(section, data) {
+  const key = REGENERATABLE_SECTIONS[section].key;
+  const value = data[key];
+  if (value === undefined) throw new Error(`Gemini response is missing "${key}".`);
+
+  const exactLength = EXACT_LENGTHS[section];
+  if (exactLength && (!Array.isArray(value) || value.length !== exactLength)) {
+    throw new Error(`"${key}" must contain exactly ${exactLength} items.`);
+  }
+  return value;
+}
+
+export async function regenerateSection(pkgDoc, section) {
+  if (!REGENERATABLE_SECTIONS[section]) {
+    throw new Error(`"${section}" is not a regeneratable section.`);
+  }
+  if (!pkgDoc.raw_transcript) {
+    throw new Error("Original transcript is unavailable for regeneration.");
+  }
+
+  try {
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: buildRegenerateUserMessage({
+        video_title: pkgDoc.metadata?.video_title,
+        subject: pkgDoc.metadata?.subject,
+        transcript: pkgDoc.raw_transcript,
+      }),
+      config: {
+        systemInstruction: buildRegenerateSystemPrompt(section),
+        responseMimeType: "application/json",
+        temperature: 0.5,
+      },
+    });
+
+    const data = extractJson(result.text);
+    return { key: REGENERATABLE_SECTIONS[section].key, value: validateSection(section, data) };
+  } catch (err) {
+    console.error(`Gemini regenerate (${section}) error:`);
+    console.error(err);
+    throw err;
+  }
+}
+
+export async function explainConcept(pkgDoc, { term, definition, action, compareWith }) {
+  try {
+    const prompt = buildExplainPrompt({
+      lectureTitle: pkgDoc.metadata?.video_title,
+      lectureSummary: pkgDoc.full_lecture_summary,
+      term,
+      definition,
+      action,
+      compareWith,
+    });
+
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+      config: { temperature: 0.5 },
+    });
+
+    return result.text;
+  } catch (err) {
+    console.error("Gemini explain error:");
+    console.error(err);
     throw err;
   }
 }

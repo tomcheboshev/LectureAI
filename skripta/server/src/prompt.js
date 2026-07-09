@@ -211,7 +211,97 @@ export function buildUserMessage({ video_title, subject, difficulty, transcript 
   Lecture Title: ${video_title || "Untitled Lecture"}
   Subject/Course: ${subject || "General Academic"}
   Difficulty Preference: ${difficulty || "auto"}
-  
+
   RAW TRANSCRIPT TO ANALYZE:
   ${transcript}`;
+}
+
+// --- Per-section regeneration -------------------------------------------
+
+export const REGENERATABLE_SECTIONS = {
+  summary: {
+    key: "summary",
+    instructions: `Regenerate the chapter summary. Return JSON: { "summary": [ { "timestamp": 0, "topic_title": "String", "description": "String", "key_points": ["String", "String"] } ] }. Create logical chapters (short transcripts 2-4, medium 4-8, long 8-12). Use the actual timeline if timestamps exist; otherwise use 0 for the first chapter. Do not create chapters for greetings or filler.`,
+  },
+  core_concepts: {
+    key: "core_concepts",
+    instructions: `Regenerate the core concepts. Return JSON: { "core_concepts": [ { "term": "String", "definition": "String", "why_it_matters": "String", "example": "String" } ] }. 3 to 8 concepts central to the lecture. If an example cannot be safely created, use "Not explicitly provided in the transcript."`,
+  },
+  study_notes: {
+    key: "study_notes",
+    instructions: `Regenerate the study notes. Return JSON: { "study_notes": { "main_ideas": ["String"], "important_details": ["String"], "formulas_or_rules": ["String"], "processes_or_steps": ["String"], "comparisons": [{"concept_a":"String","concept_b":"String","difference":"String"}], "common_misunderstandings": ["String"], "exam_focus": ["String"] } }. Use empty arrays for anything not applicable.`,
+  },
+  quiz: {
+    key: "quiz",
+    instructions: `Regenerate the quiz. Return JSON: { "quiz": [ { "question": "String", "options": ["A","B","C","D"], "correctAnswer": "String matching one option exactly", "explanation": "String", "difficulty": "easy | medium | hard", "concept_tested": "String" } ] }. Exactly 5 multiple-choice questions, each with exactly 4 plausible distinct options. Difficulty distribution: 1 easy, 3 medium, 1 hard. Vary the questions from any previous version.`,
+  },
+  flashcards: {
+    key: "flashcards",
+    instructions: `Regenerate the flashcards. Return JSON: { "flashcards": [ { "front": "String", "back": "String", "category": "definition | formula | comparison | process | example | mistake" } ] }. 5 to 10 flashcards.`,
+  },
+  practice_tasks: {
+    key: "practice_tasks",
+    instructions: `Regenerate the practice tasks. Return JSON: { "practice_tasks": [ { "task": "String", "difficulty": "easy | medium | hard", "hint": "String", "solution": "String", "concepts_used": ["String"] } ] }. Exactly 3 tasks: one easy, one medium, one hard.`,
+  },
+  true_false_questions: {
+    key: "true_false_questions",
+    instructions: `Regenerate the true/false questions. Return JSON: { "true_false_questions": [ { "statement": "String", "answer": true, "explanation": "String" } ] }. Exactly 5 items, a mix of true and false, conceptual and non-trivial.`,
+  },
+  short_answer_questions: {
+    key: "short_answer_questions",
+    instructions: `Regenerate the short-answer questions. Return JSON: { "short_answer_questions": [ { "question": "String", "expected_answer": "String", "grading_hint": "String" } ] }. Exactly 3 items requiring explanation, not one-word answers.`,
+  },
+  glossary: {
+    key: "glossary",
+    instructions: `Regenerate the glossary. Return JSON: { "glossary": [ { "term": "String", "meaning": "String" } ] }. 5 to 12 important terms. If fewer than 5 meaningful terms exist, include only the available ones.`,
+  },
+};
+
+export function buildRegenerateSystemPrompt(section) {
+  const spec = REGENERATABLE_SECTIONS[section];
+  return `You are an expert AI assistant specializing in Educational Technology and Instructional Design, helping regenerate one part of an existing study package built from a lecture transcript.
+
+${spec.instructions}
+
+IMPORTANT OUTPUT RULES:
+* Return only one valid JSON object with exactly the single top-level key described above.
+* Do not include markdown formatting, code fences, comments, or trailing commas.
+* All object keys and string values must use double quotes.
+* The output must be entirely in English and grounded strictly in the provided transcript — do not invent facts.
+* Return only the JSON object, nothing before or after it.`;
+}
+
+export function buildRegenerateUserMessage({ video_title, subject, transcript }) {
+  return `Lecture Title: ${video_title || "Untitled Lecture"}
+Subject/Course: ${subject || "General Academic"}
+
+RAW TRANSCRIPT:
+${transcript}`;
+}
+
+// --- Per-concept AI actions ----------------------------------------------
+
+export const EXPLAIN_ACTIONS = {
+  simpler: "Explain this concept in simpler terms than the original definition, for a student who found it confusing.",
+  detail: "Give a more detailed, in-depth explanation of this concept, including nuance the original definition leaves out.",
+  example: "Give one concrete real-world example that illustrates this concept clearly.",
+  compare: "Compare this concept with the given related concept, focusing on the key differences and similarities.",
+  practice: "Generate one new practice question (with its answer and a short explanation) that tests understanding of this concept.",
+  analogy: "Generate one clear analogy that helps a student build intuition for this concept.",
+  eli10: "Explain this concept the way you'd explain it to a curious 10-year-old — simple words, no jargon.",
+};
+
+export function buildExplainPrompt({ lectureTitle, lectureSummary, term, definition, action, compareWith }) {
+  const instruction = EXPLAIN_ACTIONS[action];
+  return `You are an AI tutor helping a student understand one concept from a lecture titled "${lectureTitle}".
+
+Lecture context: ${lectureSummary || "N/A"}
+
+Concept: ${term}
+Current definition: ${definition || "N/A"}
+${compareWith ? `Compare with: ${compareWith}` : ""}
+
+Task: ${instruction}
+
+Answer directly in 2-6 sentences (or as a short question+answer pair if generating a practice question). Do not repeat the original definition verbatim. Stay grounded in the lecture's subject matter — do not introduce unrelated topics. Plain text only, no markdown headers.`;
 }
