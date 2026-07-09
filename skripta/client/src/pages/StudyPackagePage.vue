@@ -33,7 +33,13 @@
           <span v-else-if="pkg.source?.type === 'docx'" class="badge">
             <DocumentIcon class="w-3 h-3 mr-1" /> {{ pkg.source.filename || "DOCX" }}
           </span>
+          <span v-else-if="pkg.sources?.length" class="badge">
+            <DocumentIcon class="w-3 h-3 mr-1" /> {{ pkg.sources.length }} source{{ pkg.sources.length > 1 ? "s" : "" }}
+          </span>
         </div>
+        <p v-if="pkg.sources?.length > 1" class="text-xs text-slate-400 mt-2">
+          {{ orderedSourceFilenames.join(" · ") }}
+        </p>
       </div>
       <div class="shrink-0 flex items-center gap-2 relative">
         <button class="inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-200 dark:border-border-dark px-3.5 py-2 text-sm font-semibold hover:border-slate-400 transition" @click="exportOpen = !exportOpen">
@@ -82,7 +88,12 @@
               <RegenerateButton :package-id="pkg._id" section="summary" @regenerated="(d) => (pkg.summary = d.summary)" />
             </div>
             <div class="relative flex flex-col gap-6 pl-6 before:content-[''] before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-slate-200 dark:before:bg-border-dark">
-              <div v-for="(c, i) in pkg.summary" :key="i" class="relative">
+              <template v-for="(c, i) in pkg.summary" :key="i">
+                <div v-if="c.source_title && c.source_title !== pkg.summary[i - 1]?.source_title" class="relative -ml-6 flex items-center gap-3 py-1">
+                  <span class="badge badge-primary shrink-0">{{ c.source_title }}</span>
+                  <span class="h-px flex-1 bg-slate-200 dark:bg-border-dark"></span>
+                </div>
+                <div class="relative">
                 <span class="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/15"></span>
                 <button
                   v-if="youtubeVideoId"
@@ -117,7 +128,8 @@
                 <ul class="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 space-y-1">
                   <li v-for="k in c.key_points" :key="k">{{ k }}</li>
                 </ul>
-              </div>
+                </div>
+              </template>
             </div>
           </div>
 
@@ -366,6 +378,10 @@ const youtubeVideoId = computed(() => {
   const match = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
   return match ? match[1] : null;
 });
+
+const orderedSourceFilenames = computed(() =>
+  [...(pkg.value?.sources || [])].sort((a, b) => a.order - b.order).map((s) => s.filename)
+);
 
 const notes = computed(() => pkg.value?.study_notes || {});
 const filteredGlossary = computed(() => {

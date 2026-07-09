@@ -52,6 +52,8 @@ REQUIRED JSON STRUCTURE:
   },
   "summary": [
     {
+      "source_index": 0,
+      "source_title": "String — only when multiple source documents were provided (see MULTI-SOURCE INPUT below); omit or use null for a single source",
       "timestamp": 0,
       "topic_title": "String",
       "description": "String — a full, textbook-quality explanation of everything important in this chapter: definitions, formulas, algorithms, processes, tables, diagrams, reasoning. Not a brief overview.",
@@ -237,6 +239,29 @@ export function buildUserMessage({ video_title, subject, difficulty, transcript 
 
   RAW TRANSCRIPT TO ANALYZE:
   ${transcript}`;
+}
+
+// --- Multi-source input (multiple uploaded files in one package) --------
+
+export const MULTI_SOURCE_INSTRUCTIONS = `
+MULTI-SOURCE INPUT:
+Multiple source documents were provided below, each marked "=== SOURCE N: filename ===" and given in upload order. Treat them as one course, with these rules:
+
+* "summary": process sources in the given order. Tag every chapter with "source_index" (0-based, matching the source order) and "source_title" (the source's meaningful title if it has one, e.g. a slide deck's title slide; otherwise "Lecture N" where N is source_index + 1, 1-based). Do NOT merge chapters from different sources into one entry — each chapter belongs to exactly one source.
+* Every other section — core_concepts, study_notes, quiz, flashcards, practice_tasks, true_false_questions, short_answer_questions, glossary, learning_objectives, prerequisites, recommended_next_steps, chatbot_context — must synthesize information across ALL sources combined as a single course. Do not duplicate a concept/definition/formula that appears in more than one source; merge them into one entry and, if the sources present it differently, reconcile the explanation.
+* Preserve the logical learning order across sources when it affects sequencing (e.g. prerequisites named in an earlier source shouldn't be re-derived from a later one).`;
+
+export function buildMultiSourceUserMessage({ video_title, subject, difficulty, sources }) {
+  const body = sources
+    .map((s, i) => `=== SOURCE ${i}: ${s.filename} ===\n${s.extracted_text}`)
+    .join("\n\n");
+  return `INPUT DATA FOR THE STUDY PACKAGE:
+  Lecture Title: ${video_title || "Untitled Lecture"}
+  Subject/Course: ${subject || "General Academic"}
+  Difficulty Preference: ${difficulty || "auto"}
+
+  ${sources.length} SOURCE DOCUMENTS TO ANALYZE (in upload order):
+  ${body}`;
 }
 
 // --- Per-section regeneration -------------------------------------------

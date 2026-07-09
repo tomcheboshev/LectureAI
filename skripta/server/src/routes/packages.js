@@ -2,7 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import StudyPackage from "../models/StudyPackage.js";
 // Промена: Го менуваме импортот да покажува кон новата gemini.js услуга
-import { generateStudyPackage, regenerateSection, explainConcept } from "../services/gemini.js";
+import { generateStudyPackage, generateStudyPackageFromSources, extractImageText, regenerateSection, explainConcept } from "../services/gemini.js";
 import { REGENERATABLE_SECTIONS, EXPLAIN_ACTIONS } from "../prompt.js";
 import {
   extractYoutubeVideoId,
@@ -10,10 +10,14 @@ import {
   fetchYoutubeTranscript,
   extractPdfText,
   extractDocxText,
+  extractPptxText,
+  extractSubtitleText,
 } from "../services/extract.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const MAX_FILES = 10;
+const IMAGE_MIMETYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg" };
 
 function validateTranscript(transcript) {
   if (!transcript || typeof transcript !== "string" || transcript.trim().length < 50) {
@@ -96,45 +100,86 @@ router.post("/from-youtube", async (req, res) => {
   }
 });
 
-// POST /api/packages/from-file  multipart: file, video_title?, subject?, difficulty?
-router.post("/from-file", upload.single("file"), async (req, res) => {
+function fileExt(originalname) {
+  return (originalname.split(".").pop() || "").toLowerCase();
+}
+
+// Extracts text from one uploaded file based on its extension/mimetype.
+// Returns { text, file_type }.
+async function extractFileText(file) {
+  const ext = fileExt(file.originalname);
+
+  if (ext === "pdf" || file.mimetype === "application/pdf") {
+    return { text: await extractPdfText(file.buffer), file_type: "pdf" };
+  }
+  if (ext === "docx" || file.mimetype.includes("wordprocessingml.document")) {
+    return { text: await extractDocxText(file.buffer), file_type: "docx" };
+  }
+  if (ext === "pptx" || file.mimetype.includes("presentationml.presentation")) {
+    return { text: await extractPptxText(file.buffer), file_type: "pptx" };
+  }
+  if (ext === "srt" || ext === "vtt") {
+    return { text: extractSubtitleText(file.buffer), file_type: ext };
+  }
+  if (ext === "txt" || file.mimetype === "text/plain") {
+    return { text: file.buffer.toString("utf-8"), file_type: "txt" };
+  }
+  if (ext === "md" || file.mimetype === "text/markdown") {
+    return { text: file.buffer.toString("utf-8"), file_type: "md" };
+  }
+  if (IMAGE_MIMETYPES[ext]) {
+    return { text: await extractImageText(file.buffer, IMAGE_MIMETYPES[ext]), file_type: "image" };
+  }
+
+  const e = new Error(`"${file.originalname}" has an unsupported file type. Supported: PDF, PPTX, DOCX, TXT, MD, SRT, VTT, PNG, JPG.`);
+  e.status = 400;
+  throw e;
+}
+
+// POST /api/packages/from-files  multipart: files[] (1-10), video_title?, subject?, difficulty?
+router.post("/from-files", upload.array("files", MAX_FILES), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "A file is required." });
+    const files = req.files || [];
+    if (files.length === 0) return res.status(400).json({ error: "At least one file is required." });
+    if (files.length > MAX_FILES) return res.status(400).json({ error: `You can upload at most ${MAX_FILES} files at once.` });
 
     const { video_title, subject, difficulty } = req.body;
     const titleError = validateTitleAndSubject(video_title, subject);
     if (titleError) return res.status(400).json({ error: titleError });
 
-    const ext = (req.file.originalname.split(".").pop() || "").toLowerCase();
-    let transcript;
-    let sourceType;
-    if (ext === "pdf" || req.file.mimetype === "application/pdf") {
-      transcript = await extractPdfText(req.file.buffer);
-      sourceType = "pdf";
-    } else if (ext === "docx" || req.file.mimetype.includes("wordprocessingml")) {
-      transcript = await extractDocxText(req.file.buffer);
-      sourceType = "docx";
-    } else if (ext === "txt" || req.file.mimetype === "text/plain") {
-      transcript = req.file.buffer.toString("utf-8");
-      sourceType = "transcript";
-    } else {
-      return res.status(400).json({ error: "Only .pdf, .docx and .txt files are supported." });
+    const extracted = await Promise.all(
+      files.map(async (file, order) => {
+        const { text, file_type } = await extractFileText(file);
+        return { filename: file.originalname, file_type, order, extracted_text: text };
+      })
+    );
+
+    for (const s of extracted) {
+      if (!s.extracted_text || s.extracted_text.trim().length < 20) {
+        return res.status(400).json({ error: `Could not extract meaningful text from "${s.filename}".` });
+      }
     }
 
-    const transcriptError = validateTranscript(transcript);
+    const combinedText = extracted.map((s) => `=== SOURCE ${s.order}: ${s.filename} ===\n${s.extracted_text}`).join("\n\n");
+    const transcriptError = validateTranscript(combinedText);
     if (transcriptError) return res.status(400).json({ error: transcriptError });
 
-    const doc = await createPackage({
-      video_title: video_title || req.file.originalname.replace(/\.[^.]+$/, ""),
-      subject,
-      difficulty,
-      transcript,
-      source: { type: sourceType, filename: req.file.originalname },
+    const pkg =
+      extracted.length === 1
+        ? await generateStudyPackage({ video_title, subject, difficulty, transcript: extracted[0].extracted_text })
+        : await generateStudyPackageFromSources({ video_title, subject, difficulty, sources: extracted });
+
+    const sourceType = extracted.length === 1 ? extracted[0].file_type : "mixed";
+    const doc = await StudyPackage.create({
+      ...pkg,
+      raw_transcript: combinedText,
+      source: { type: sourceType, filename: extracted.length === 1 ? extracted[0].filename : undefined },
+      sources: extracted,
     });
     res.status(201).json(doc);
   } catch (err) {
-    console.error("File generation failed:", err);
-    res.status(500).json({ error: err.message || "Could not process this file." });
+    console.error("Multi-file generation failed:", err);
+    res.status(err.status || 500).json({ error: err.message || "Could not process these files." });
   }
 });
 
@@ -144,6 +189,9 @@ router.get("/", async (_req, res) => {
     metadata: 1,
     createdAt: 1,
     source: 1,
+    "sources.filename": 1,
+    "sources.file_type": 1,
+    "sources.order": 1,
     "quiz.question": 1,
     "flashcards.front": 1,
   })
@@ -156,6 +204,7 @@ router.get("/", async (_req, res) => {
       metadata: d.metadata,
       createdAt: d.createdAt,
       source: d.source,
+      sources: d.sources,
       quizCount: d.quiz?.length || 0,
       flashcardCount: d.flashcards?.length || 0,
     }))

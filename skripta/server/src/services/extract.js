@@ -1,6 +1,7 @@
 import { YoutubeTranscript } from "youtube-transcript";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
+import { parseOffice } from "officeparser";
 
 const YOUTUBE_ID_RE = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/;
 
@@ -22,6 +23,71 @@ export async function extractPdfText(buffer) {
 export async function extractDocxText(buffer) {
   const { value } = await mammoth.extractRawText({ buffer });
   return value;
+}
+
+export async function extractPptxText(buffer) {
+  const ast = await parseOffice(buffer);
+  return ast.toText();
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function formatSeconds(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return `${m}:${pad2(s)}`;
+}
+
+function parseSubtitleTimestamp(ts) {
+  const norm = ts.trim().replace(",", ".");
+  const parts = norm.split(":").map(Number);
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return 0;
+}
+
+// Shared parser for .srt and .vtt — both use "start --> end" timestamp lines
+// followed by one or more lines of cue text, separated by a blank line.
+export function extractSubtitleText(buffer) {
+  const lines = buffer.toString("utf-8").split(/\r?\n/);
+  const timeLineRe = /(\d{1,2}:\d{2}(?::\d{2})?[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}(?::\d{2})?[.,]\d{3})/;
+
+  const cues = [];
+  let start = null;
+  let textLines = [];
+
+  const flush = () => {
+    if (start !== null && textLines.length) {
+      cues.push({ start, text: textLines.join(" ").replace(/<[^>]+>/g, "").trim() });
+    }
+    start = null;
+    textLines = [];
+  };
+
+  for (const line of lines) {
+    const match = line.match(timeLineRe);
+    if (match) {
+      flush();
+      start = parseSubtitleTimestamp(match[1]);
+    } else if (line.trim() === "" ) {
+      flush();
+    } else if (/^\d+$/.test(line.trim()) || line.trim().toUpperCase() === "WEBVTT") {
+      // cue index number or the VTT header — not cue text
+    } else {
+      textLines.push(line.trim());
+    }
+  }
+  flush();
+
+  if (cues.length === 0) {
+    const e = new Error("Could not find any subtitle cues in this file.");
+    e.status = 400;
+    throw e;
+  }
+
+  return cues.map((c) => `[${formatSeconds(c.start)}] ${c.text}`).join("\n");
 }
 
 export async function fetchYoutubeMetadata(url) {

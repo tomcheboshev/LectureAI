@@ -27,6 +27,9 @@ app.use((err, _req, res, _next) => {
   if (err.code === "LIMIT_FILE_SIZE") {
     return res.status(400).json({ error: "File is too large (max 20MB)." });
   }
+  if (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE") {
+    return res.status(400).json({ error: "Too many files — you can upload at most 10 at once." });
+  }
   res.status(500).json({ error: "Internal server error." });
 });
 

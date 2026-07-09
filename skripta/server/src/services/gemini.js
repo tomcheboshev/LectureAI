@@ -3,6 +3,8 @@ import { jsonrepair } from "jsonrepair";
 import {
   SYSTEM_PROMPT,
   buildUserMessage,
+  MULTI_SOURCE_INSTRUCTIONS,
+  buildMultiSourceUserMessage,
   REGENERATABLE_SECTIONS,
   buildRegenerateSystemPrompt,
   buildRegenerateUserMessage,
@@ -79,6 +81,56 @@ export async function generateStudyPackage(input) {
     console.error("Gemini generation error:");
     console.error(err);
 
+    throw err;
+  }
+}
+
+export async function generateStudyPackageFromSources(input) {
+  try {
+    console.log(`Generating study package from ${input.sources.length} source(s)...`);
+
+    const result = await ai.models.generateContent({
+      model: MODEL,
+
+      contents: buildMultiSourceUserMessage(input),
+
+      config: {
+        systemInstruction: SYSTEM_PROMPT + "\n" + MULTI_SOURCE_INSTRUCTIONS,
+        responseMimeType: "application/json",
+        temperature: 0.3,
+      },
+    });
+
+    const pkg = extractJson(result.text);
+    validatePackage(pkg);
+    return pkg;
+  } catch (err) {
+    console.error("Gemini multi-source generation error:");
+    console.error(err);
+    throw err;
+  }
+}
+
+export async function extractImageText(buffer, mimeType) {
+  try {
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: "Transcribe every piece of text visible in this image (including handwriting), and describe any diagrams, tables, charts or formulas in detail. If this looks like a slide, include its title and all bullet points in order. Plain text output, no markdown.",
+            },
+            { inlineData: { mimeType, data: buffer.toString("base64") } },
+          ],
+        },
+      ],
+    });
+    return result.text;
+  } catch (err) {
+    console.error("Gemini image extraction error:");
+    console.error(err);
     throw err;
   }
 }
