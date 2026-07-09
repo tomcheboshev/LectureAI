@@ -1,35 +1,43 @@
-# Skripta — AI Study Package Generator
+# LectureAI — AI Study Package Generator
 
-Paste a lecture transcript → get a complete study package: chapter summary, core concepts, exam notes, an interactive 5-question quiz, flashcards, practice tasks, true/false and short-answer questions, a glossary, and a chatbot that answers questions about that specific lecture.
+Upload lecture material (transcript, YouTube link, or multiple files — PDF/PPTX/DOCX/TXT/MD/SRT/VTT/images) → get a complete study package: chapter-by-chapter summary, core concepts, study notes, a quiz, flashcards, practice tasks, true/false and short-answer questions, a glossary, and an AI tutor chatbot scoped to that material.
 
-**Stack:** Vue 3 (Vite) · Express · MongoDB (Mongoose) · Anthropic Claude API
+**Stack:** Vue 3 (Vite, Pinia, Tailwind v4) · Express · MongoDB (Mongoose) · Google Gemini API · JWT auth
 
 ```
 skripta/
-├── server/          Express API + MongoDB + Claude integration
+├── server/          Express API + MongoDB + Gemini integration
 │   └── src/
-│       ├── index.js             entry point
-│       ├── prompt.js            the full generation prompt
-│       ├── models/StudyPackage.js
-│       ├── routes/packages.js   generate / list / get / delete
-│       ├── routes/chat.js       lecture-scoped chatbot
-│       └── services/claude.js   API calls + JSON extraction + validation
+│       ├── index.js                entry point (helmet, rate limiting, CORS, routes)
+│       ├── prompt.js               the full generation prompt + material-scaled content counts
+│       ├── models/{User,StudyPackage}.js
+│       ├── middleware/auth.js      JWT auth guard
+│       ├── routes/{auth,packages,chat}.js
+│       ├── services/gemini.js      Gemini calls + retry/backoff + JSON extraction + validation
+│       ├── services/extract.js     PDF/DOCX/PPTX/SRT/VTT/YouTube text extraction
+│       ├── services/auth/          password hashing, tokens, dev-mode email links
+│       ├── services/subscription.js  plan limits (free/pro/enterprise)
+│       └── services/jobQueue.js    in-process priority queue for background generation
 └── client/          Vue 3 SPA
     └── src/
-        ├── views/    Home, NewPackage, Package (tabbed)
-        └── components/  QuizPlayer, FlashcardDeck, TrueFalseQuiz, ChatPanel
+        ├── pages/    Landing, Login/Register/ForgotPassword/ResetPassword/VerifyEmail,
+        │             Dashboard, Upload, StudyPackage (tabbed), Settings
+        ├── stores/   auth, theme, locale, toast, upgrade (Pinia)
+        └── components/  QuizPlayer, FlashcardDeck, TrueFalseQuiz, ChatPanel, UpgradeModal, ...
 ```
 
 ## Setup
 
-Requirements: Node 18+, MongoDB running locally (or an Atlas URI), an Anthropic API key.
+Requirements: Node 18+, MongoDB running locally (or an Atlas URI), a [Gemini API key](https://aistudio.google.com/apikey).
 
 ### 1. Backend
 
 ```bash
 cd server
 npm install
-cp .env.example .env    # then edit .env and paste your ANTHROPIC_API_KEY
+cp .env.example .env
+# edit .env: set GEMINI_API_KEY, and generate two secrets with `openssl rand -hex 48`
+# for JWT_ACCESS_SECRET and JWT_REFRESH_SECRET — the server refuses to start without them
 npm run dev             # API on http://localhost:3000
 ```
 
@@ -41,28 +49,26 @@ npm install
 npm run dev             # app on http://localhost:5173 (proxies /api to :3000)
 ```
 
-Open http://localhost:5173, click **+ New package**, paste a transcript, generate.
+Open http://localhost:5173, register an account, click **+ New package**.
 
-## API
+## Accounts & subscriptions
 
-| Method | Route | Body | Description |
-|---|---|---|---|
-| POST | `/api/packages/generate` | `{ video_title, subject, difficulty, transcript }` | Calls Claude, validates the JSON, saves to MongoDB |
-| GET | `/api/packages` | — | Light list for the home page |
-| GET | `/api/packages/:id` | — | Full study package |
-| DELETE | `/api/packages/:id` | — | Delete a package |
-| POST | `/api/chat/:id` | `{ messages: [{role, content}] }` | Chatbot grounded in the stored `chatbot_context` |
+- Full JWT auth: register/login/logout, refresh (rotating refresh token in an httpOnly cookie), forgot/reset password, email verification, change password, profile update, account deletion.
+- **No email provider is wired up.** Verification and password-reset links are logged to the server console (and returned in the API response in dev) instead of being emailed — see `services/auth/email.js` to plug in a real provider.
+- Three plans (free/pro/enterprise) gate package count, files per package, max file size, and AI Tutor messages per package — see `services/subscription.js`. **No payment processor is wired up either**: `POST /api/auth/upgrade` flips the plan directly (used by the in-app "Upgrade to Pro" button); swap in real Stripe Checkout there when ready.
+- Every study package belongs to a user; all package/chat routes are ownership-scoped.
 
 ## How generation works
 
-1. `prompt.js` holds the full system prompt (output rules + required JSON structure + all 15 section requirements + quality control checklist). The user's input is injected as a JSON user message.
-2. `services/claude.js` calls the Messages API with `max_tokens: 16000`, strips any stray code fences, extracts the first top-level `{...}`, parses with `JSON.parse`, and runs count checks (quiz = 5 with 4 options each and a matching `correctAnswer`, tasks = 3, T/F = 5, short answer = 3). Violations are logged as warnings, not hard failures.
-3. The parsed object is stored 1:1 in MongoDB (`Schema.Types.Mixed` for nested content so a slightly off shape never crashes a save). The raw transcript is kept with `select: false` so it's stored but never sent to the client.
-4. The chatbot endpoint builds its system prompt from the stored `chatbot_context` + `full_lecture_summary` — no transcript needed at chat time, which keeps chat calls cheap.
+1. `prompt.js` holds the system prompt (output rules, full JSON schema, LaTeX rendering rules, multi-source handling). Quiz/flashcard/practice-task/etc. counts scale with how much material was provided (a tiered lookup by character count) instead of a fixed number.
+2. Generation is asynchronous: `POST /packages/generate|from-youtube|from-files` creates the package immediately (`status: "queued"`) and returns 202; a background job (a small in-process priority queue — Pro jobs run ahead of Free ones) extracts text, calls Gemini, and saves the result, updating `status`/`progress` for the frontend to poll (`GET /packages/:id`).
+3. `services/gemini.js` retries transient Gemini errors (429/500/503) with exponential backoff, then extracts/repairs the JSON response and validates section counts against the material-scaled targets.
+4. Multi-file uploads keep the Summary split by source document (tagged with `source_index`/`source_title`) while every other section synthesizes across all uploaded files as one course.
+5. The chat endpoint builds its system prompt from the stored `chatbot_context` + `full_lecture_summary` — no re-extraction needed at chat time.
 
 ## Notes
 
-- Model is configurable via `CLAUDE_MODEL` in `.env` (default `claude-sonnet-4-5`).
-- Transcript limits: min 50 chars, max 400k chars (enforced server-side).
-- Chat history is sanitized and capped at the last 20 messages per request.
-- To deploy: `cd client && npm run build`, serve `client/dist` statically (e.g. from Express with `express.static`) and point the frontend at the API origin.
+- Model is configurable via `GEMINI_MODEL` in `.env` (default `gemini-1.5-flash`).
+- Transcript limits: min 50 chars, max 400k chars (combined across files for multi-file uploads).
+- Uploaded files are never stored as raw blobs (no object storage is configured) — only their extracted text is persisted, indefinitely, alongside filename/type/order for future regeneration.
+- To deploy: `cd client && npm run build`, serve `client/dist` statically and point it at the API origin; set `CLIENT_ORIGIN` and `CLIENT_URL` in the server's `.env` for production CORS/email-link generation.
