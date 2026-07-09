@@ -9,6 +9,38 @@
     <div class="rounded-2xl border border-danger/30 bg-danger/5 text-danger p-6">{{ error }}</div>
   </div>
 
+  <!-- Generation still in progress (async background job) -->
+  <div v-else-if="pkg && pkg.status === 'failed'" class="max-w-2xl mx-auto px-4 sm:px-6 py-16 text-center">
+    <span class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-danger/10 text-danger mb-5">
+      <ExclamationTriangleIcon class="w-7 h-7" />
+    </span>
+    <h1 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-2">Generation failed</h1>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ pkg.generationError || "Something went wrong while generating this study package." }}</p>
+    <div class="flex items-center justify-center gap-3">
+      <RouterLink to="/new" class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover transition">Try again</RouterLink>
+      <button class="inline-flex items-center gap-2 rounded-xl border-2 border-danger/30 text-danger px-5 py-2.5 text-sm font-semibold hover:bg-danger/10 transition" @click="remove">
+        <TrashIcon class="w-4 h-4" /> Delete
+      </button>
+    </div>
+  </div>
+
+  <div v-else-if="pkg && pkg.status !== 'completed'" class="max-w-lg mx-auto px-4 sm:px-6 py-20 text-center">
+    <div class="relative w-20 h-20 mb-8 mx-auto">
+      <div class="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-secondary to-accent opacity-30 animate-ping"></div>
+      <div class="absolute inset-0 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white animate-float">
+        <SparklesIcon class="w-9 h-9" />
+      </div>
+    </div>
+    <h1 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-2">{{ progressStepLabel }}</h1>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ pkg.metadata?.video_title && pkg.metadata.video_title !== "Generating…" ? pkg.metadata.video_title : "Building your study package…" }}</p>
+    <div class="max-w-xs mx-auto">
+      <div class="h-2 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+        <div class="h-full rounded-full bg-gradient-to-r from-primary to-secondary transition-all duration-700" :style="{ width: pkg.progress + '%' }"></div>
+      </div>
+      <p class="text-xs font-mono text-slate-400 mt-2">{{ pkg.progress }}%</p>
+    </div>
+  </div>
+
   <div v-else-if="pkg" class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
     <RouterLink to="/dashboard" class="inline-flex items-center gap-1 text-sm font-semibold text-slate-500 hover:text-primary transition mb-3">
       <ArrowLeftIcon class="w-4 h-4" /> Dashboard
@@ -319,14 +351,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import {
   ArrowLeftIcon, TrashIcon, MagnifyingGlassIcon, ChevronRightIcon, ArrowDownTrayIcon,
   FireIcon, CheckCircleIcon, BookOpenIcon, AcademicCapIcon, DocumentTextIcon,
   QueueListIcon, QuestionMarkCircleIcon, Squares2X2Icon, ClipboardDocumentCheckIcon,
   CheckIcon, PencilSquareIcon, MapIcon, ChatBubbleLeftRightIcon,
-  VideoCameraIcon, DocumentIcon,
+  VideoCameraIcon, DocumentIcon, SparklesIcon, ExclamationTriangleIcon,
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
@@ -391,15 +423,44 @@ const filteredGlossary = computed(() => {
   return list.filter((g) => g.term.toLowerCase().includes(q) || g.meaning.toLowerCase().includes(q));
 });
 
+const PROGRESS_STEP_LABELS = {
+  queued: "Queued for generation…",
+  extracting: "Extracting text from your source…",
+  generating: "Generating your study package…",
+  saving: "Saving the results…",
+};
+const progressStepLabel = computed(() => PROGRESS_STEP_LABELS[pkg.value?.status] || "Working on it…");
+
+let pollTimer = null;
+function stopPolling() {
+  clearTimeout(pollTimer);
+  pollTimer = null;
+}
+async function pollStatus() {
+  try {
+    const fresh = await api.getPackage(props.id);
+    pkg.value = fresh;
+    if (fresh.status === "queued" || fresh.status === "extracting" || fresh.status === "generating" || fresh.status === "saving") {
+      pollTimer = setTimeout(pollStatus, 1800);
+    }
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
 onMounted(async () => {
   try {
     pkg.value = await api.getPackage(props.id);
+    if (pkg.value.status && pkg.value.status !== "completed" && pkg.value.status !== "failed") {
+      pollTimer = setTimeout(pollStatus, 1800);
+    }
   } catch (e) {
     error.value = e.message;
   } finally {
     loading.value = false;
   }
 });
+onUnmounted(stopPolling);
 
 function formatTs(sec) {
   const s = Number(sec) || 0;
