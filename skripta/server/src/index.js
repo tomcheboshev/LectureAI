@@ -38,7 +38,7 @@ async function start() {
   
   await mongoose.connect(MONGODB_URI);
   console.log("MongoDB connected:", MONGODB_URI);
-  app.listen(PORT, () => console.log(`Skripta API on http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`API on http://localhost:${PORT}`));
 }
 
 start().catch((err) => {
