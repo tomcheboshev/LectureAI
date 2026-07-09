@@ -119,41 +119,177 @@
 
           <!-- NOTES -->
           <div v-else-if="tab === 'notes'" key="notes" class="flex flex-col gap-4">
-            <div class="flex justify-end">
-              <RegenerateButton :package-id="pkg._id" section="study_notes" @regenerated="(d) => (pkg.study_notes = d.study_notes)" />
-            </div>
-            <div class="grid sm:grid-cols-2 gap-4">
-              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold mb-2">Main ideas</h3>
-                <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.main_ideas" :key="x">{{ x }}</li></ul>
+            <nav class="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 dark:bg-white/5 p-1">
+              <button
+                v-for="v in noteViews"
+                :key="v.id"
+                class="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition"
+                :class="notesView === v.id ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
+                @click="notesView = v.id"
+              >
+                {{ v.label }}
+              </button>
+            </nav>
+
+            <!-- Overview -->
+            <template v-if="notesView === 'overview'">
+              <div class="flex justify-end">
+                <RegenerateButton :package-id="pkg._id" section="study_notes" @regenerated="(d) => (pkg.study_notes = d.study_notes)" />
               </div>
-              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold mb-2">Important details</h3>
-                <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.important_details" :key="x">{{ x }}</li></ul>
+              <div class="grid sm:grid-cols-2 gap-4">
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Main ideas</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.main_ideas" :key="x">{{ x }}</li></ul>
+                </div>
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Important details</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.important_details" :key="x">{{ x }}</li></ul>
+                </div>
+                <div v-if="notes.formulas_or_rules?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Formulas &amp; rules</h3>
+                  <ul class="list-disc list-inside font-mono text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.formulas_or_rules" :key="x">{{ x }}</li></ul>
+                </div>
+                <div v-if="notes.processes_or_steps?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Processes &amp; steps</h3>
+                  <ol class="list-decimal list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.processes_or_steps" :key="x">{{ x }}</li></ol>
+                </div>
+                <div v-if="notes.comparisons?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5 sm:col-span-2">
+                  <h3 class="font-display font-bold mb-2">Comparisons</h3>
+                  <p v-for="(c, i) in notes.comparisons" :key="i" class="text-sm text-slate-600 dark:text-slate-300 mb-1">
+                    <strong class="text-slate-900 dark:text-white">{{ c.concept_a }}</strong> vs <strong class="text-slate-900 dark:text-white">{{ c.concept_b }}</strong>: {{ c.difference }}
+                  </p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Common mistakes</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.common_misunderstandings" :key="x">{{ x }}</li></ul>
+                </div>
               </div>
-              <div v-if="notes.formulas_or_rules?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold mb-2">Formulas &amp; rules</h3>
-                <ul class="list-disc list-inside font-mono text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.formulas_or_rules" :key="x">{{ x }}</li></ul>
+            </template>
+
+            <!-- Comprehensive Notes -->
+            <template v-else-if="notesView === 'comprehensive'">
+              <div class="flex justify-end">
+                <RegenerateButton :package-id="pkg._id" section="comprehensive_notes" @regenerated="(d) => (pkg.comprehensive_notes = d.comprehensive_notes)" />
               </div>
-              <div v-if="notes.processes_or_steps?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold mb-2">Processes &amp; steps</h3>
-                <ol class="list-decimal list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.processes_or_steps" :key="x">{{ x }}</li></ol>
+              <EmptyState v-if="!pkg.comprehensive_notes?.length" :icon="DocumentTextIcon" title="Not generated yet" description="This package was created before Comprehensive Notes existed — regenerate to build it." />
+              <div v-for="(c, i) in pkg.comprehensive_notes" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                <h3 class="font-display font-bold text-lg text-primary mb-2">{{ c.topic }}</h3>
+                <p class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed mb-3">{{ c.explanation }}</p>
+                <div v-if="c.formulas?.length" class="flex flex-col gap-2 mb-3">
+                  <div v-for="(f, fi) in c.formulas" :key="fi" class="rounded-xl bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark p-3">
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ f.name }}</p>
+                    <p class="font-mono text-sm text-slate-900 dark:text-white my-1">{{ f.formula }}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ f.variables }}</p>
+                  </div>
+                </div>
+                <ul v-if="c.processes_or_algorithms?.length" class="list-decimal list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300 mb-2">
+                  <li v-for="x in c.processes_or_algorithms" :key="x">{{ x }}</li>
+                </ul>
+                <p v-for="x in c.diagrams_or_tables_explained" :key="x" class="text-xs text-slate-500 dark:text-slate-400 italic mb-1">📊 {{ x }}</p>
+                <p v-for="x in c.code_explained" :key="x" class="text-xs font-mono text-slate-500 dark:text-slate-400 mb-1">💻 {{ x }}</p>
               </div>
-              <div v-if="notes.comparisons?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5 sm:col-span-2">
-                <h3 class="font-display font-bold mb-2">Comparisons</h3>
-                <p v-for="(c, i) in notes.comparisons" :key="i" class="text-sm text-slate-600 dark:text-slate-300 mb-1">
-                  <strong class="text-slate-900 dark:text-white">{{ c.concept_a }}</strong> vs <strong class="text-slate-900 dark:text-white">{{ c.concept_b }}</strong>: {{ c.difference }}
-                </p>
+            </template>
+
+            <!-- Quick Review -->
+            <template v-else-if="notesView === 'quick'">
+              <div class="flex justify-end">
+                <RegenerateButton :package-id="pkg._id" section="quick_review" @regenerated="(d) => (pkg.quick_review = d.quick_review)" />
               </div>
-              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold mb-2">Common mistakes</h3>
-                <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.common_misunderstandings" :key="x">{{ x }}</li></ul>
+              <EmptyState v-if="!pkg.quick_review || !Object.keys(pkg.quick_review).length" :icon="BoltIcon" title="Not generated yet" description="This package was created before Quick Review existed — regenerate to build it." />
+              <div v-else class="grid sm:grid-cols-2 gap-4">
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2 flex items-center gap-1.5"><BoltIcon class="w-4 h-4 text-primary" /> Key concepts</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300"><li v-for="x in pkg.quick_review.key_concepts" :key="x">{{ x }}</li></ul>
+                </div>
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Important definitions</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300"><li v-for="x in pkg.quick_review.important_definitions" :key="x">{{ x }}</li></ul>
+                </div>
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Essential formulas</h3>
+                  <ul class="list-disc list-inside font-mono text-sm space-y-1 text-slate-600 dark:text-slate-300"><li v-for="x in pkg.quick_review.essential_formulas" :key="x">{{ x }}</li></ul>
+                </div>
+                <div class="rounded-2xl border-2 border-warning/40 bg-warning/5 p-5">
+                  <h3 class="font-display font-bold mb-2">Exam tips</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1 text-slate-700 dark:text-slate-200"><li v-for="x in pkg.quick_review.exam_tips" :key="x">{{ x }}</li></ul>
+                </div>
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Common mistakes</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300"><li v-for="x in pkg.quick_review.common_mistakes" :key="x">{{ x }}</li></ul>
+                </div>
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Memory tricks</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300"><li v-for="x in pkg.quick_review.memory_tricks" :key="x">{{ x }}</li></ul>
+                </div>
               </div>
-            </div>
-            <div class="rounded-2xl border-2 border-warning/40 bg-warning/5 p-5">
-              <h3 class="font-display font-bold mb-2 flex items-center gap-2"><FireIcon class="w-5 h-5 text-warning" /> Exam focus</h3>
-              <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-700 dark:text-slate-200"><li v-for="x in notes.exam_focus" :key="x">{{ x }}</li></ul>
-            </div>
+            </template>
+
+            <!-- Formula Sheet -->
+            <template v-else-if="notesView === 'formulas'">
+              <div class="flex justify-end">
+                <RegenerateButton :package-id="pkg._id" section="formula_sheet" @regenerated="(d) => (pkg.formula_sheet = d.formula_sheet)" />
+              </div>
+              <EmptyState v-if="!pkg.formula_sheet?.length" :icon="CalculatorIcon" title="No formulas" description="Either this material has no formulas, or this package was created before the Formula Sheet existed — try regenerating." />
+              <div v-for="(f, i) in pkg.formula_sheet" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                <div class="flex items-baseline justify-between gap-2 mb-1">
+                  <h3 class="font-display font-bold text-slate-900 dark:text-white">{{ f.name }}</h3>
+                </div>
+                <p class="font-mono text-base text-primary bg-primary/5 rounded-lg px-3 py-2 mb-2 inline-block">{{ f.formula }}</p>
+                <p class="text-sm text-slate-600 dark:text-slate-300 mb-1"><strong>Variables:</strong> {{ f.variables }}</p>
+                <p class="text-sm text-slate-600 dark:text-slate-300 mb-1">{{ f.explanation }}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-1"><strong>When to use:</strong> {{ f.when_to_use }}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-1"><strong>Example:</strong> {{ f.example }}</p>
+                <p v-if="f.common_mistakes" class="text-sm text-danger/90 mb-1"><strong>Common mistake:</strong> {{ f.common_mistakes }}</p>
+                <p v-if="f.related_formulas?.length" class="text-xs font-mono text-slate-400 mt-2">related: {{ f.related_formulas.join(", ") }}</p>
+              </div>
+            </template>
+
+            <!-- Definitions -->
+            <template v-else-if="notesView === 'definitions'">
+              <div class="flex justify-end">
+                <RegenerateButton :package-id="pkg._id" section="definitions" @regenerated="(d) => (pkg.definitions = d.definitions)" />
+              </div>
+              <EmptyState v-if="!pkg.definitions?.length" :icon="BookmarkIcon" title="Not generated yet" description="This package was created before Definitions existed — regenerate to build it." />
+              <div class="grid sm:grid-cols-2 gap-4">
+                <div v-for="(d, i) in pkg.definitions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold text-primary mb-1.5">{{ d.term }}</h3>
+                  <p class="text-sm text-slate-700 dark:text-slate-200 mb-2">{{ d.definition }}</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400 mb-2 italic">"{{ d.simple_explanation }}"</p>
+                  <p class="text-sm text-slate-600 dark:text-slate-300 mb-2"><strong>Why it matters:</strong> {{ d.why_it_matters }}</p>
+                  <p v-if="d.related_concepts?.length" class="text-xs font-mono text-slate-400">related: {{ d.related_concepts.join(", ") }}</p>
+                </div>
+              </div>
+            </template>
+
+            <!-- Exam Focus -->
+            <template v-else-if="notesView === 'examfocus'">
+              <div class="flex justify-end">
+                <RegenerateButton :package-id="pkg._id" section="exam_focus" @regenerated="(d) => (pkg.exam_focus = d.exam_focus)" />
+              </div>
+              <EmptyState v-if="!pkg.exam_focus || !Object.keys(pkg.exam_focus).length" :icon="FireIcon" title="Not generated yet" description="This package was created before the deep Exam Focus existed — regenerate to build it." />
+              <div v-else class="grid sm:grid-cols-2 gap-4">
+                <div class="rounded-2xl border-2 border-warning/40 bg-warning/5 p-5 sm:col-span-2">
+                  <h3 class="font-display font-bold mb-2 flex items-center gap-2"><FireIcon class="w-5 h-5 text-warning" /> Most important topics</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1 text-slate-700 dark:text-slate-200"><li v-for="x in pkg.exam_focus.most_important_topics" :key="x">{{ x }}</li></ul>
+                </div>
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Frequently tested concepts</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300"><li v-for="x in pkg.exam_focus.frequently_tested_concepts" :key="x">{{ x }}</li></ul>
+                </div>
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
+                  <h3 class="font-display font-bold mb-2">Common student mistakes</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300"><li v-for="x in pkg.exam_focus.common_student_mistakes" :key="x">{{ x }}</li></ul>
+                </div>
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5 sm:col-span-2">
+                  <h3 class="font-display font-bold mb-2">High-priority material</h3>
+                  <ul class="list-disc list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300"><li v-for="x in pkg.exam_focus.high_priority_material" :key="x">{{ x }}</li></ul>
+                </div>
+                <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5 sm:col-span-2">
+                  <h3 class="font-display font-bold mb-2">Typical exam questions</h3>
+                  <ol class="list-decimal list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in pkg.exam_focus.typical_exam_questions" :key="x">{{ x }}</li></ol>
+                </div>
+              </div>
+            </template>
           </div>
 
           <!-- GLOSSARY -->
@@ -290,11 +426,12 @@ import {
   FireIcon, CheckCircleIcon, BookOpenIcon, AcademicCapIcon, DocumentTextIcon,
   QueueListIcon, QuestionMarkCircleIcon, Squares2X2Icon, ClipboardDocumentCheckIcon,
   CheckIcon, PencilSquareIcon, MapIcon, ChatBubbleLeftRightIcon,
-  VideoCameraIcon, DocumentIcon,
+  VideoCameraIcon, DocumentIcon, BoltIcon, CalculatorIcon, BookmarkIcon,
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
 import { downloadMarkdown, downloadJson, openPrintView } from "../composables/useExport.js";
+import EmptyState from "../components/ui/EmptyState.vue";
 import QuizPlayer from "../components/QuizPlayer.vue";
 import FlashcardDeck from "../components/FlashcardDeck.vue";
 import TrueFalseQuiz from "../components/TrueFalseQuiz.vue";
@@ -319,6 +456,15 @@ const exportOpen = ref(false);
 const quizKey = ref(0);
 const flashcardsKey = ref(0);
 const trueFalseKey = ref(0);
+const notesView = ref("overview");
+const noteViews = [
+  { id: "overview", label: "Overview" },
+  { id: "comprehensive", label: "Comprehensive" },
+  { id: "quick", label: "Quick Review" },
+  { id: "formulas", label: "Formula Sheet" },
+  { id: "definitions", label: "Definitions" },
+  { id: "examfocus", label: "Exam Focus" },
+];
 
 const tabs = [
   { id: "summary", label: "Summary", icon: BookOpenIcon },
