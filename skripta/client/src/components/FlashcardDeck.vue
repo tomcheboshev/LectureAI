@@ -19,6 +19,9 @@
       <button class="ghost" @click="shuffle">Shuffle</button>
       <button @click="move(1)" :disabled="index === cards.length - 1">Next →</button>
     </div>
+    <div class="dots">
+      <span v-for="(_, i) in cards" :key="i" class="dot" :class="{ active: i === index }"></span>
+    </div>
   </div>
 </template>
 
@@ -91,5 +94,8 @@ function shuffle() {
 }
 .hint { position: absolute; bottom: 12px; font-size: 12px; }
 .controls { display: flex; gap: 10px; justify-content: center; }
+.dots { display: flex; gap: 6px; justify-content: center; margin-top: 16px; }
+.dot { width: 6px; height: 6px; border-radius: 999px; background: var(--line); transition: background 0.15s ease, transform 0.15s ease; }
+.dot.active { background: var(--hl); transform: scale(1.4); }
 @media (prefers-reduced-motion: reduce) { .inner { transition: none; } }
 </style>
