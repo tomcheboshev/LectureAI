@@ -26,6 +26,7 @@ IMPORTANT OUTPUT RULES:
 * If timestamps are missing or inconsistent, estimate chapter order and use 0 for the first timestamp.
 * Prioritize educational completeness over brevity. Never omit an important concept, definition, formula, algorithm, table, diagram or process just to make the output shorter.
 * Whenever mathematical expressions, formulas, equations, logical notation, automata, grammars, algorithms, or scientific notation appear, render them as LaTeX wrapped in "$...$" for inline math or "$$...$$" for block/display math (e.g. "$$\\delta: Q \\times \\Sigma \\to Q$$"). Use proper LaTeX for subscripts, superscripts, fractions, summations, matrices, integrals, sets and logic symbols. Represent transition tables as plain-text tables (pipes and dashes) inside the relevant explanation text.
+* CRITICAL JSON RULE FOR LATEX: every backslash inside a LaTeX command must be written as a DOUBLE backslash in the JSON string, since a single backslash is invalid inside a JSON string. The command \\delta must appear in the JSON output as \\\\delta (so it parses back to \\delta). Getting this wrong breaks the entire output — double-check every LaTeX backslash before finishing.
 
 YOUR GOAL:
 Transform the transcript into a complete learning package that helps a student:

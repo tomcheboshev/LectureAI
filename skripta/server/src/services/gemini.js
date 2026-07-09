@@ -14,10 +14,19 @@ const ai = new GoogleGenAI({
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
+// LaTeX (now requested in the prompt for formulas/math) is full of single
+// backslashes — \delta, \times, \Sigma — which are invalid inside a JSON
+// string unless doubled. Gemini doesn't always escape them correctly, so
+// repair any backslash that isn't a valid JSON escape sequence before
+// parsing, rather than trusting the model to always get this right.
+function fixInvalidJsonEscapes(text) {
+  return text.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, "\\\\");
+}
+
 function extractJson(text) {
   if (!text) throw new Error("Gemini returned an empty response.");
 
-  const cleaned = text.trim();
+  const cleaned = fixInvalidJsonEscapes(text.trim());
 
   try {
     return JSON.parse(cleaned);
