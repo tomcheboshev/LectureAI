@@ -1,4 +1,5 @@
 import axios from "axios";
+import { useI18n } from "../composables/useI18n.js";
 
 const http = axios.create({ baseURL: "/api", withCredentials: true });
 
@@ -49,7 +50,7 @@ http.interceptors.response.use(
   async (err) => {
     const original = err.config;
     const status = err.response?.status;
-    const message = err.response?.data?.error || err.message || "Request failed";
+    const message = err.response?.data?.error || err.message || useI18n().t("errors.requestFailed");
 
     if (status === 401 && !original?._retried && !NO_REFRESH_RETRY.has(original?.url)) {
       original._retried = true;
@@ -109,4 +110,9 @@ export const api = {
   chat: (id, messages) => http.post(`/chat/${id}`, { messages }).then((r) => r.data),
   getChatHistory: (id) => http.get(`/chat/${id}`).then((r) => r.data),
   clearChatHistory: (id) => http.delete(`/chat/${id}`).then((r) => r.data),
+
+  // Analytics
+  submitQuizAttempt: (id, answers) => http.post(`/packages/${id}/quiz-attempts`, { answers }).then((r) => r.data),
+  submitFlashcardReview: (id, cardIndex, known) => http.post(`/packages/${id}/flashcard-reviews`, { cardIndex, known }).then((r) => r.data),
+  getAnalytics: () => http.get("/analytics").then((r) => r.data),
 };

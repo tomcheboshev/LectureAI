@@ -9,6 +9,7 @@ const routes = [
   { path: "/reset-password/:token", name: "reset-password", component: () => import("../pages/ResetPasswordPage.vue"), meta: { layout: "landing", guestOnly: true } },
   { path: "/verify-email/:token", name: "verify-email", component: () => import("../pages/VerifyEmailPage.vue"), meta: { layout: "landing" } },
   { path: "/dashboard", name: "dashboard", component: () => import("../pages/DashboardPage.vue"), meta: { requiresAuth: true } },
+  { path: "/analytics", name: "analytics", component: () => import("../pages/AnalyticsPage.vue"), meta: { requiresAuth: true } },
   { path: "/new", name: "upload", component: () => import("../pages/UploadPage.vue"), meta: { requiresAuth: true } },
   { path: "/package/:id", name: "package", component: () => import("../pages/StudyPackagePage.vue"), props: true, meta: { requiresAuth: true } },
   { path: "/settings", name: "settings", component: () => import("../pages/SettingsPage.vue"), meta: { requiresAuth: true } },

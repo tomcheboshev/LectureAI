@@ -20,15 +20,15 @@
 
   <div class="mt-auto pt-6">
     <div class="rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark p-4">
-      <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Tip</p>
-      <p class="text-sm text-slate-600 dark:text-slate-300">Paste raw transcripts — timestamps are optional, LectureAI figures out the chapters.</p>
+      <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{{ t("sidebar.tipLabel") }}</p>
+      <p class="text-sm text-slate-600 dark:text-slate-300">{{ t("sidebar.tipBody") }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
 import { useRoute, RouterLink } from "vue-router";
-import { HomeIcon, PlusCircleIcon, Cog6ToothIcon } from "@heroicons/vue/24/outline";
+import { HomeIcon, PlusCircleIcon, Cog6ToothIcon, ChartBarIcon } from "@heroicons/vue/24/outline";
 import { useI18n } from "../composables/useI18n.js";
 
 defineEmits(["navigate"]);
@@ -36,9 +36,10 @@ const route = useRoute();
 const { t } = useI18n();
 
 const nav = [
-  { to: "/dashboard", labelKey: "dashboard", icon: HomeIcon },
-  { to: "/new", labelKey: "newPackage", icon: PlusCircleIcon },
-  { to: "/settings", labelKey: "settings", icon: Cog6ToothIcon },
+  { to: "/dashboard", labelKey: "nav.dashboard", icon: HomeIcon },
+  { to: "/new", labelKey: "nav.newPackage", icon: PlusCircleIcon },
+  { to: "/analytics", labelKey: "nav.analytics", icon: ChartBarIcon },
+  { to: "/settings", labelKey: "nav.settings", icon: Cog6ToothIcon },
 ];
 
 function isActive(item) {

@@ -1,7 +1,7 @@
 <template>
   <div class="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-    <h1 class="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 dark:text-white">New study package</h1>
-    <p class="text-slate-500 dark:text-slate-400 mt-1 mb-6">Paste a transcript, drop in a YouTube link, or upload up to 10 files (PDF, PPTX, DOCX, TXT, MD, SRT, VTT, PNG, JPG).</p>
+    <h1 class="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 dark:text-white">{{ t("upload.title") }}</h1>
+    <p class="text-slate-500 dark:text-slate-400 mt-1 mb-6">{{ t("upload.subtitle") }}</p>
 
     <div class="inline-flex rounded-xl border border-slate-200 dark:border-border-dark p-1 mb-6 bg-slate-100 dark:bg-white/5">
       <button
@@ -12,7 +12,7 @@
         :class="mode === m.id ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
         @click="mode = m.id"
       >
-        <component :is="m.icon" class="w-4 h-4" /> {{ m.label }}
+        <component :is="m.icon" class="w-4 h-4" /> {{ t(m.labelKey) }}
       </button>
     </div>
 
@@ -20,34 +20,34 @@
       <div class="grid sm:grid-cols-2 gap-5">
         <div>
           <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">
-            Lecture title {{ mode !== "text" ? "(optional — auto-detected)" : "" }}
+            {{ t("upload.fields.titleLabel") }} {{ mode !== "text" ? t("upload.fields.titleOptionalSuffix") : "" }}
           </label>
-          <input v-model="form.video_title" maxlength="300" :required="mode === 'text'" placeholder="e.g. Turing Machines — Lecture 7" class="input-field" />
+          <input v-model="form.video_title" maxlength="300" :required="mode === 'text'" :placeholder="t('upload.fields.titlePlaceholder')" class="input-field" />
         </div>
         <div>
-          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Subject</label>
-          <input v-model="form.subject" maxlength="150" placeholder="e.g. Theoretical Computer Science" class="input-field" />
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">{{ t("upload.fields.subjectLabel") }}</label>
+          <input v-model="form.subject" maxlength="150" :placeholder="t('upload.fields.subjectPlaceholder')" class="input-field" />
         </div>
       </div>
 
       <div>
-        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Difficulty preference</label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">{{ t("upload.fields.difficultyLabel") }}</label>
         <select v-model="form.difficulty" class="input-field">
-          <option value="auto">Auto-detect</option>
-          <option value="beginner">Beginner</option>
-          <option value="intermediate">Intermediate</option>
-          <option value="advanced">Advanced</option>
+          <option value="auto">{{ t("upload.difficulty.auto") }}</option>
+          <option value="beginner">{{ t("upload.difficulty.beginner") }}</option>
+          <option value="intermediate">{{ t("upload.difficulty.intermediate") }}</option>
+          <option value="advanced">{{ t("upload.difficulty.advanced") }}</option>
         </select>
       </div>
 
       <!-- TEXT MODE -->
       <div v-if="mode === 'text'">
-        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Raw transcript</label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">{{ t("upload.text.label") }}</label>
         <textarea
           v-model="form.transcript"
           rows="14"
           required
-          placeholder="Paste the full transcript here… or drag & drop a .txt file"
+          :placeholder="t('upload.text.placeholder')"
           class="input-field font-mono text-sm resize-y transition"
           :class="dragging ? 'border-primary bg-primary/5' : ''"
           @dragover.prevent="dragging = true"
@@ -58,27 +58,27 @@
           <div class="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
             <div class="h-full rounded-full transition-all" :class="tooLong ? 'bg-danger' : 'bg-primary'" :style="{ width: pct + '%' }"></div>
           </div>
-          <p class="text-xs font-mono text-slate-400 whitespace-nowrap">{{ form.transcript.length.toLocaleString() }} / 400,000</p>
+          <p class="text-xs font-mono text-slate-400 whitespace-nowrap">{{ t("upload.text.counter", { count: form.transcript.length.toLocaleString() }) }}</p>
         </div>
       </div>
 
       <!-- YOUTUBE MODE -->
       <div v-else-if="mode === 'youtube'">
-        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">YouTube video URL</label>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">{{ t("upload.youtube.label") }}</label>
         <div class="relative">
           <VideoCameraIcon class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input v-model="form.youtubeUrl" required placeholder="https://www.youtube.com/watch?v=…" class="input-field pl-9" />
+          <input v-model="form.youtubeUrl" required :placeholder="t('upload.youtube.placeholder')" class="input-field pl-9" />
         </div>
-        <p class="text-xs text-slate-400 mt-2">The video needs captions/subtitles available (auto-generated captions work too).</p>
+        <p class="text-xs text-slate-400 mt-2">{{ t("upload.youtube.hint") }}</p>
       </div>
 
       <!-- FILE MODE -->
       <div v-else>
         <div class="flex items-center justify-between mb-1.5">
           <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Files ({{ selectedFiles.length }}/{{ maxFiles }})
+            {{ t("upload.file.label", { current: selectedFiles.length, max: maxFiles }) }}
           </label>
-          <p v-if="selectedFiles.length > 1" class="text-xs text-slate-400">Summary stays split by document; everything else is merged.</p>
+          <p v-if="selectedFiles.length > 1" class="text-xs text-slate-400">{{ t("upload.file.splitHint") }}</p>
         </div>
 
         <label
@@ -89,8 +89,8 @@
           @drop.prevent="onFileDrop"
         >
           <ArrowUpTrayIcon class="w-7 h-7 text-slate-400" />
-          <span class="text-sm text-slate-500 dark:text-slate-400">Drag & drop files here, or click to browse</span>
-          <span class="text-xs text-slate-400">PDF, PPTX, DOCX, TXT, MD, SRT, VTT, PNG, JPG · up to {{ maxFiles }} files · max {{ maxFileSizeMB }}MB each</span>
+          <span class="text-sm text-slate-500 dark:text-slate-400">{{ t("upload.file.dropzoneText") }}</span>
+          <span class="text-xs text-slate-400">{{ t("upload.file.dropzoneHint", { max: maxFiles, size: maxFileSizeMB }) }}</span>
           <input
             type="file"
             multiple
@@ -112,13 +112,13 @@
               <p class="text-xs text-slate-400">{{ formatSize(f.file.size) }}</p>
             </div>
             <div class="flex items-center gap-1 shrink-0">
-              <button type="button" title="Move up" :disabled="i === 0" class="icon-btn" @click="moveFile(i, -1)">
+              <button type="button" :title="t('upload.file.moveUp')" :disabled="i === 0" class="icon-btn" @click="moveFile(i, -1)">
                 <ChevronUpIcon class="w-4 h-4" />
               </button>
-              <button type="button" title="Move down" :disabled="i === selectedFiles.length - 1" class="icon-btn" @click="moveFile(i, 1)">
+              <button type="button" :title="t('upload.file.moveDown')" :disabled="i === selectedFiles.length - 1" class="icon-btn" @click="moveFile(i, 1)">
                 <ChevronDownIcon class="w-4 h-4" />
               </button>
-              <button type="button" title="Remove" class="icon-btn hover:text-danger" @click="removeFile(i)">
+              <button type="button" :title="t('upload.file.remove')" class="icon-btn hover:text-danger" @click="removeFile(i)">
                 <XMarkIcon class="w-4 h-4" />
               </button>
             </div>
@@ -129,14 +129,14 @@
           <div class="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
             <div class="h-full rounded-full bg-primary transition-all" :style="{ width: uploadProgress + '%' }"></div>
           </div>
-          <p class="text-xs text-slate-400 mt-1">Uploading… {{ uploadProgress }}%</p>
+          <p class="text-xs text-slate-400 mt-1">{{ t("upload.file.uploading", { percent: uploadProgress }) }}</p>
         </div>
       </div>
 
       <div v-if="error" class="rounded-xl border border-danger/30 bg-danger/5 text-danger text-sm px-4 py-3">{{ error }}</div>
 
       <button :disabled="generating || !canSubmit" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 font-semibold text-white shadow-lg shadow-primary/25 hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed transition">
-        <SparklesIcon class="w-5 h-5" /> Generate study package
+        <SparklesIcon class="w-5 h-5" /> {{ t("upload.submit") }}
       </button>
     </form>
 
@@ -149,8 +149,8 @@
             <SparklesIcon class="w-9 h-9" />
           </div>
         </div>
-        <h2 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-2">Setting up your study package…</h2>
-        <p class="text-slate-500 dark:text-slate-400 max-w-sm">Uploading and queuing generation — you'll see live progress on the next page.</p>
+        <h2 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-2">{{ t("upload.generatingOverlay.title") }}</h2>
+        <p class="text-slate-500 dark:text-slate-400 max-w-sm">{{ t("upload.generatingOverlay.description") }}</p>
       </div>
     </Transition>
   </div>
@@ -174,9 +174,11 @@ import {
 import { api } from "../services/api.js";
 import { reportApiError } from "../composables/useApiError.js";
 import { useAuthStore } from "../stores/auth.js";
+import { useI18n } from "../composables/useI18n.js";
 
 const router = useRouter();
 const auth = useAuthStore();
+const { t } = useI18n();
 const generating = ref(false);
 const error = ref("");
 const dragging = ref(false);
@@ -210,9 +212,9 @@ function formatSize(bytes) {
 }
 
 const modes = [
-  { id: "text", label: "Paste transcript", icon: DocumentTextIcon },
-  { id: "youtube", label: "YouTube URL", icon: VideoCameraIcon },
-  { id: "file", label: "Upload file", icon: ArrowUpTrayIcon },
+  { id: "text", labelKey: "upload.modes.text", icon: DocumentTextIcon },
+  { id: "youtube", labelKey: "upload.modes.youtube", icon: VideoCameraIcon },
+  { id: "file", labelKey: "upload.modes.file", icon: ArrowUpTrayIcon },
 ];
 
 const form = reactive({ video_title: "", subject: "", difficulty: "auto", transcript: "", youtubeUrl: "" });
@@ -286,7 +288,7 @@ function addFiles(fileList) {
 
   const room = maxFiles.value - selectedFiles.value.length;
   if (room <= 0) {
-    error.value = `You can upload at most ${maxFiles.value} files at once on your plan.`;
+    error.value = t("upload.errors.tooManyFiles", { max: maxFiles.value });
     return;
   }
   const accepted = sized.slice(0, room);
@@ -295,9 +297,9 @@ function addFiles(fileList) {
   }
 
   if (tooBig.length) {
-    error.value = `${tooBig.map((f) => f.name).join(", ")} exceed${tooBig.length === 1 ? "s" : ""} your plan's ${maxFileSizeMB.value}MB per-file limit.`;
+    error.value = t("upload.errors.tooBig", { files: tooBig.map((f) => f.name).join(", "), size: maxFileSizeMB.value });
   } else if (sized.length > accepted.length) {
-    error.value = `Only ${room} more file(s) could be added — the ${maxFiles.value}-file limit on your plan was reached.`;
+    error.value = t("upload.errors.roomLimited", { room, max: maxFiles.value });
   } else {
     error.value = "";
   }

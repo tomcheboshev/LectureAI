@@ -7,12 +7,12 @@
           <span class="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-secondary text-white mb-4">
             <SparklesIcon class="w-6 h-6" />
           </span>
-          <h3 class="font-display font-extrabold text-xl text-slate-900 dark:text-white mb-1.5">Upgrade to Pro</h3>
+          <h3 class="font-display font-extrabold text-xl text-slate-900 dark:text-white mb-1.5">{{ t("upgradeModal.title") }}</h3>
           <p class="text-sm text-slate-600 dark:text-slate-300 mb-5">{{ upgrade.message }}</p>
 
           <ul class="flex flex-col gap-2 mb-6">
             <li v-for="f in proFeatures" :key="f" class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
-              <CheckIcon class="w-4 h-4 text-success shrink-0 mt-0.5" /> {{ f }}
+              <CheckIcon class="w-4 h-4 text-success shrink-0 mt-0.5" /> {{ t(f) }}
             </li>
           </ul>
 
@@ -20,7 +20,7 @@
 
           <div class="flex gap-2">
             <button class="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 transition" @click="upgrade.hide()">
-              Maybe later
+              {{ t("upgradeModal.maybeLater") }}
             </button>
             <button
               :disabled="loading"
@@ -28,10 +28,10 @@
               @click="doUpgrade"
             >
               <ArrowPathIcon v-if="loading" class="w-4 h-4 animate-spin" />
-              {{ loading ? "Upgrading…" : "Upgrade to Pro" }}
+              {{ loading ? t("upgradeModal.upgrading") : t("common.upgradeToPro") }}
             </button>
           </div>
-          <p class="text-[11px] text-slate-400 mt-3 text-center">No payment processor is connected yet — this switches your account to the Pro plan directly.</p>
+          <p class="text-[11px] text-slate-400 mt-3 text-center">{{ t("upgradeModal.disclaimer") }}</p>
         </div>
       </div>
     </Transition>
@@ -39,24 +39,31 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { SparklesIcon, CheckIcon, ArrowPathIcon } from "@heroicons/vue/24/outline";
 import { useUpgradeStore } from "../stores/upgrade.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useToastStore } from "../stores/toast.js";
+import { useI18n } from "../composables/useI18n.js";
+import { useModalBehavior } from "../composables/useModalBehavior.js";
 
 const upgrade = useUpgradeStore();
 const auth = useAuthStore();
 const toast = useToastStore();
+const { t } = useI18n();
 const loading = ref(false);
 const error = ref("");
+useModalBehavior(
+  computed(() => upgrade.open),
+  () => upgrade.hide()
+);
 
 const proFeatures = [
-  "Unlimited study packages",
-  "Up to 20 files per package, larger uploads",
-  "Unlimited AI Tutor chat",
-  "Priority generation queue",
-  "Exports without a watermark",
+  "upgradeModal.features.unlimitedPackages",
+  "upgradeModal.features.moreFiles",
+  "upgradeModal.features.unlimitedChat",
+  "upgradeModal.features.priorityQueue",
+  "upgradeModal.features.noWatermark",
 ];
 
 async function doUpgrade() {
@@ -64,7 +71,7 @@ async function doUpgrade() {
   loading.value = true;
   try {
     await auth.upgrade("pro");
-    toast.success("You're on the Pro plan now.");
+    toast.success(t("toasts.upgradedToPro"));
     upgrade.hide();
   } catch (e) {
     error.value = e.message;

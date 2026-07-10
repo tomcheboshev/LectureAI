@@ -16,7 +16,20 @@ function renderMath(expr, displayMode) {
 }
 
 // Matches $$...$$ (block, tried first) or $...$ (inline) in one pass.
-const MATH_PATTERN = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;
+//
+// The inline branch requires the opening $ to NOT be immediately followed by
+// whitespace or a digit, and the closing $ to not be immediately preceded by
+// whitespace — the same convention Pandoc's tex_math_dollars extension uses.
+// Without this, a lazy match on prose like "costs $500 and the CPU costs
+// $300" spans from the first $ to the second (treating "500 and the CPU
+// costs " as a math expression) and leaves "300" as an orphaned, un-delimited
+// number — any currency amount in AI-generated content broke inline math
+// rendering for the rest of that line. The trade-off (accepted deliberately,
+// matching Pandoc's own convention) is that math starting with a bare digit
+// coefficient like "$2x+3$" no longer matches — acceptable here since this
+// app's formulas are prompted to use named variables/operators, not bare
+// leading coefficients.
+const MATH_PATTERN = /\$\$([\s\S]+?)\$\$|\$(?![\s\d])([^$\n]+?)(?<!\s)\$/g;
 
 /**
  * Scans RAW (unescaped) text once for $$...$$ / $...$ math segments,

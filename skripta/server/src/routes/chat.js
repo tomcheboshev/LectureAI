@@ -4,6 +4,7 @@ import { chatAboutLecture } from "../services/gemini.js";
 import { requireAuth } from "../middleware/auth.js";
 import { respondError } from "../utils/httpError.js";
 import { planLimits, upgradeError } from "../services/subscription.js";
+import { recordActivity } from "../services/analytics/activity.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -59,6 +60,7 @@ router.post("/:id", async (req, res) => {
 
     doc.chat_history = [...clean, { role: "assistant", content: reply }].slice(-40);
     await doc.save();
+    recordActivity(req.userId, "chatMessages");
 
     res.json({ reply });
   } catch (err) {

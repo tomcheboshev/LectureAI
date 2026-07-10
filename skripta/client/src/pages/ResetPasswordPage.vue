@@ -12,20 +12,20 @@
 
       <div class="rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark p-6 sm:p-8 shadow-xl shadow-slate-200/40 dark:shadow-none">
         <template v-if="!done">
-          <h1 class="font-display font-extrabold text-2xl text-slate-900 dark:text-white mb-1">Set a new password</h1>
-          <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">Choose a new password for your account.</p>
+          <h1 class="font-display font-extrabold text-2xl text-slate-900 dark:text-white mb-1">{{ t("auth.resetPassword.title") }}</h1>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ t("auth.resetPassword.subtitle") }}</p>
 
           <form class="flex flex-col gap-4" @submit.prevent="submit">
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">New password</label>
-              <input v-model="password" type="password" required autocomplete="new-password" class="input-field" placeholder="At least 8 characters" />
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">{{ t("auth.resetPassword.newPasswordLabel") }}</label>
+              <input v-model="password" type="password" required autocomplete="new-password" class="input-field" :placeholder="t('auth.resetPassword.passwordPlaceholder')" />
             </div>
 
             <div v-if="error" class="rounded-xl border border-danger/30 bg-danger/5 text-danger text-sm px-4 py-2.5">{{ error }}</div>
 
             <button :disabled="loading" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-white shadow-lg shadow-primary/25 hover:bg-primary-hover disabled:opacity-40 transition mt-2">
               <ArrowPathIcon v-if="loading" class="w-4 h-4 animate-spin" />
-              {{ loading ? "Saving…" : "Reset password" }}
+              {{ loading ? t("auth.resetPassword.submitting") : t("auth.resetPassword.submit") }}
             </button>
           </form>
         </template>
@@ -34,9 +34,9 @@
           <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-success/10 text-success mb-4">
             <CheckCircleIcon class="w-7 h-7" />
           </span>
-          <h1 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-1.5">Password updated</h1>
-          <p class="text-sm text-slate-500 dark:text-slate-400 mb-5">You've been logged out everywhere for security. Log in with your new password.</p>
-          <RouterLink to="/login" class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover transition">Log in</RouterLink>
+          <h1 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-1.5">{{ t("auth.resetPassword.doneTitle") }}</h1>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mb-5">{{ t("auth.resetPassword.doneBody") }}</p>
+          <RouterLink to="/login" class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover transition">{{ t("auth.resetPassword.logIn") }}</RouterLink>
         </template>
       </div>
     </div>
@@ -48,7 +48,9 @@ import { ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import { ArrowPathIcon, CheckCircleIcon } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
+import { useI18n } from "../composables/useI18n.js";
 
+const { t } = useI18n();
 const route = useRoute();
 const password = ref("");
 const loading = ref(false);

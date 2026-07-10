@@ -1,13 +1,13 @@
 <template>
-  <div class="flex flex-col h-[600px] rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark overflow-hidden">
+  <div class="flex flex-col h-[70vh] max-h-[420px] sm:max-h-[500px] lg:max-h-[600px] rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark overflow-hidden">
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-border-dark">
       <div class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
         <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-primary to-secondary text-white">
           <SparklesIcon class="w-4 h-4" />
         </span>
-        AI Tutor
+        {{ t("chatPanel.title") }}
       </div>
-      <button v-if="messages.length" class="text-xs font-medium text-slate-400 hover:text-danger transition" @click="clearChat">Clear chat</button>
+      <button v-if="messages.length" class="text-xs font-medium text-slate-400 hover:text-danger transition" @click="clearChat">{{ t("chatPanel.clearChat") }}</button>
     </div>
 
     <div ref="scrollEl" class="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-5" @click="onMessageAreaClick">
@@ -16,7 +16,7 @@
         <div class="skeleton h-10 w-1/2 rounded-2xl self-end"></div>
       </div>
       <div v-else-if="messages.length === 0" class="flex flex-col gap-2">
-        <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">Ask anything about this lecture. Try one of these:</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ t("chatPanel.emptyPrompt") }}</p>
         <button
           v-for="p in suggestedPrompts"
           :key="p"
@@ -42,14 +42,14 @@
         </div>
         <div class="flex items-center gap-2 px-10 opacity-0 group-hover:opacity-100 transition" :class="m.role === 'user' ? 'flex-row-reverse pl-0 pr-10' : ''">
           <button class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 inline-flex items-center gap-1" @click="copyMessage(m.content)">
-            <ClipboardDocumentIcon class="w-3.5 h-3.5" /> Copy
+            <ClipboardDocumentIcon class="w-3.5 h-3.5" /> {{ t("common.copy") }}
           </button>
           <button
             v-if="m.role === 'assistant' && i === messages.length - 1 && !thinking"
             class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 inline-flex items-center gap-1"
             @click="regenerate"
           >
-            <ArrowPathIcon class="w-3.5 h-3.5" /> Regenerate
+            <ArrowPathIcon class="w-3.5 h-3.5" /> {{ t("chatPanel.regenerate") }}
           </button>
         </div>
       </div>
@@ -63,11 +63,11 @@
     <form class="flex gap-2 border-t border-slate-200 dark:border-border-dark p-3 bg-slate-50/60 dark:bg-white/[0.02]" @submit.prevent="send(draft)">
       <input
         v-model="draft"
-        placeholder="Ask about the lecture…"
+        :placeholder="t('chatPanel.inputPlaceholder')"
         :disabled="thinking"
         class="flex-1 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"
       />
-      <button :disabled="thinking || !draft.trim()" class="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-primary text-white disabled:opacity-40 hover:bg-primary-hover transition">
+      <button :disabled="thinking || !draft.trim()" :aria-label="t('chatPanel.send')" class="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-primary text-white disabled:opacity-40 hover:bg-primary-hover transition">
         <PaperAirplaneIcon class="w-5 h-5" />
       </button>
     </form>
@@ -82,6 +82,7 @@ import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
 import { reportApiError } from "../composables/useApiError.js";
 import { renderMarkdown } from "../composables/useMarkdown.js";
+import { useI18n } from "../composables/useI18n.js";
 import TypingIndicator from "./TypingIndicator.vue";
 
 const props = defineProps({
@@ -90,6 +91,7 @@ const props = defineProps({
 });
 
 const toast = useToastStore();
+const { t } = useI18n();
 const messages = ref([]);
 const draft = ref("");
 const thinking = ref(false);
@@ -110,7 +112,7 @@ function renderBody(m, i) {
   if (m.role === "assistant" && i === typingIndex.value) {
     return escapeHtml(typingRevealed.value).replace(/\n/g, "<br>") + '<span class="typing-cursor">▍</span>';
   }
-  return renderMarkdown(m.content);
+  return renderMarkdown(m.content, { copyLabel: t("common.copy") });
 }
 
 function sleep(ms) {
@@ -133,7 +135,7 @@ onMounted(async () => {
   try {
     const { messages: history } = await api.getChatHistory(props.packageId);
     messages.value = history;
-    if (history.length) scrollDown();
+    if (history.length) scrollDown({ force: true });
   } catch {
     // No history yet, or it failed to load — start with a blank conversation.
   } finally {
@@ -147,7 +149,7 @@ async function send(text) {
   messages.value.push({ role: "user", content });
   draft.value = "";
   thinking.value = true;
-  scrollDown();
+  scrollDown({ force: true });
   try {
     const { reply } = await api.chat(props.packageId, messages.value);
     const idx = messages.value.push({ role: "assistant", content: reply }) - 1;
@@ -189,9 +191,9 @@ async function regenerate() {
 async function copyMessage(text) {
   try {
     await navigator.clipboard.writeText(text);
-    toast.success("Copied.");
+    toast.success(t("toasts.copied"));
   } catch {
-    toast.error("Could not copy to clipboard.");
+    toast.error(t("toasts.copyFailed"));
   }
 }
 
@@ -202,7 +204,7 @@ function onMessageAreaClick(e) {
   if (!codeEl) return;
   navigator.clipboard.writeText(codeEl.textContent || "");
   const original = btn.textContent;
-  btn.textContent = "Copied!";
+  btn.textContent = t("chatPanel.codeCopied");
   setTimeout(() => {
     btn.textContent = original;
   }, 1500);
@@ -219,9 +221,22 @@ async function clearChat() {
   }
 }
 
-async function scrollDown() {
+// Don't yank the user back to the bottom if they've deliberately scrolled up
+// to reread something — only auto-scroll while they're already near the
+// bottom. Without this, the ~120 scrollTo() calls a single typed-out reply
+// can trigger (see animateTyping) fight any manual scroll mid-stream.
+const NEAR_BOTTOM_THRESHOLD_PX = 80;
+function isNearBottom() {
+  const el = scrollEl.value;
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_THRESHOLD_PX;
+}
+
+async function scrollDown({ force = false } = {}) {
   await nextTick();
-  scrollEl.value?.scrollTo({ top: scrollEl.value.scrollHeight, behavior: "smooth" });
+  const el = scrollEl.value;
+  if (!el || (!force && !isNearBottom())) return;
+  el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
 }
 </script>
 

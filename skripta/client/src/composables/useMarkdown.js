@@ -65,7 +65,7 @@ function highlightCode(lang, code) {
  * handles LaTeX) rather than once up front, so math delimiters are
  * always matched against the original raw text.
  */
-export function renderMarkdown(text) {
+export function renderMarkdown(text, { copyLabel = "Copy" } = {}) {
   if (!text) return "";
 
   // Code fences are pulled out as placeholder tokens before the blank-line
@@ -73,19 +73,31 @@ export function renderMarkdown(text) {
   // splitting first would slice a fenced block into several "paragraphs"
   // and run paragraph/list regexes over its already-highlighted HTML.
   const codeBlocks = [];
-  const withPlaceholders = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+  const withCodePlaceholders = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const trimmed = code.trim();
     const { html, lang: detected } = highlightCode(lang, trimmed);
     const token = "CODEBLOCKPLACEHOLDER" + codeBlocks.length;
     codeBlocks.push(
-      `<div class="code-block"><div class="code-block-header"><span>${escapeHtml(detected || "text")}</span><button type="button" class="code-copy-btn">Copy</button></div><pre><code class="hljs">${html}</code></pre></div>`
+      `<div class="code-block"><div class="code-block-header"><span>${escapeHtml(detected || "text")}</span><button type="button" class="code-copy-btn">${escapeHtml(copyLabel)}</button></div><pre><code class="hljs">${html}</code></pre></div>`
     );
+    return token;
+  });
+
+  // Display math ($$...$$) gets the same placeholder protection — without
+  // it, a formula the model split across a blank line for readability gets
+  // cut into two separate "paragraphs" by the split below, each left with an
+  // unbalanced $$ that renderLatexSegments can't recognize as math anymore.
+  const mathBlocks = [];
+  const withPlaceholders = withCodePlaceholders.replace(/\$\$[\s\S]+?\$\$/g, (fullMatch) => {
+    const token = "MATHBLOCKPLACEHOLDER" + mathBlocks.length;
+    mathBlocks.push(renderLatexSegments(fullMatch));
     return token;
   });
 
   const blocks = withPlaceholders.split(/\n{2,}/).map((block) => {
     const trimmedBlock = block.trim();
     if (/^CODEBLOCKPLACEHOLDER\d+$/.test(trimmedBlock)) return trimmedBlock;
+    if (/^MATHBLOCKPLACEHOLDER\d+$/.test(trimmedBlock)) return trimmedBlock;
 
     const lines = block.split("\n");
     const isBulletList = lines.every((l) => /^\s*[-*]\s+/.test(l));
@@ -106,5 +118,8 @@ export function renderMarkdown(text) {
     return `<p>${inline(block).replace(/\n/g, "<br>")}</p>`;
   });
 
-  return blocks.join("").replace(/CODEBLOCKPLACEHOLDER(\d+)/g, (_, i) => codeBlocks[Number(i)]);
+  return blocks
+    .join("")
+    .replace(/CODEBLOCKPLACEHOLDER(\d+)/g, (_, i) => codeBlocks[Number(i)])
+    .replace(/MATHBLOCKPLACEHOLDER(\d+)/g, (_, i) => mathBlocks[Number(i)]);
 }

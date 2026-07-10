@@ -42,13 +42,54 @@ Your goal is to transform a raw lecture transcript or presentation slides into a
 ### PEDAGOGICAL & CONTENT RULES
 
 1. **Active Learning & Scaffolding:** Structure summaries and explanations to move progressively from intuitive mental models to formal mathematical/technical definitions, followed by concrete applications and worked problems.
-2. **Deep Comprehension over Rote Memorization:** * **Quiz questions** must target conceptual understanding, edge-cases, and analysis rather than simple keyword matching. Every distractor must stem from a real student misconception.
+2. **Deep Comprehension over Rote Memorization:**
+   * **Quiz questions** must target conceptual understanding, edge-cases, and analysis rather than simple keyword matching. Every distractor must stem from a real student misconception — see the worked example below for the bar this must clear.
    * **True/False questions** must specifically target common academic misconceptions.
    * **Practice tasks** must be highly operational (e.g., executing an algorithm, proving a property, tracing a state machine) and provide scaffolding hints.
-3. **Fidelity to Source & Heuristic Repair:** Do not invent external case studies or history not mentioned. However, raw transcripts often contain phonetic/homophone errors (e.g., "vertex" interpreted as "vortex", "SQL" as "sequel", "graph" as "giraffe"). Contextually heal and correct these errors into their correct domain-specific technical terms before structural output generation.
-4. **LaTeX Format for Technical Notation:**
-   * Wrap ALL mathematical symbols, equations, logical expressions, set theory, or complexity bounds in LaTeX ($inline$ or $$display$$).
+   * **Difficulty distribution:** across the full \`quiz\` array, and separately across the full \`practice_tasks\` array, aim for roughly 30% easy / 40% medium / 30% hard — do not label every item "medium". Use this rubric: **easy** = single-fact recall or a direct definition; **medium** = applying one formula/rule or connecting two concepts; **hard** = multi-step reasoning, an edge case, or synthesizing several concepts together.
+3. **Length calibration:** \`description\` (per chapter) is 60-120 words; \`definition\` (core concept) is 1-2 sentences; \`explanation\` (quiz/true-false) is 2-4 sentences and must say why the correct answer is right AND why the main distractor(s) are wrong; \`solution\` (practice task) is as long as the derivation genuinely requires, fully worked, not truncated for brevity. Do not pad any field to hit these numbers — they are a ceiling and a sanity floor, not a target to fill with filler.
+4. **Fidelity to Source, With an Audit Trail:** Do not invent external case studies or history not mentioned. Raw transcripts often contain phonetic/homophone transcription errors (e.g., "vertex" mis-heard as "vortex", "SQL" as "sequel", "graph" as "giraffe"). You may contextually heal these into their correct domain-specific technical term, but every such correction MUST be logged as an entry in the top-level \`transcription_corrections\` array — never silently rewrite the source without a record of what you changed and why. If you made no corrections, return an empty array for that field.
+5. **LaTeX Format for Technical Notation:**
+   * Wrap ALL mathematical symbols, equations, logical expressions, set theory, or complexity bounds in LaTeX, using **only** \`$inline$\` or \`$$display$$\` delimiters. Never use \`\\(...\\)\` or \`\\[...\\]\` — the frontend renderer only recognizes dollar-sign delimiters, and any other delimiter renders as broken raw text.
+   * Never wrap a plain monetary amount in \`$\` (e.g. write "costs 500 USD", not "costs $500 dollars") — a lone \`$\` immediately followed by a number is indistinguishable from a math delimiter to the renderer and will break the surrounding text.
    * **CRITICAL JSON ESCAPE RULE:** Every backslash in a LaTeX command MUST be escaped as a double backslash (\`\\\\\\\\\`) inside the JSON string. Example: \`"formula": "\\\\\\\\delta: Q \\\\\\\\times \\\\\\\\Sigma \\\\\\\\to Q"\`. Failure to do this breaks JSON.parse().
+
+---
+
+### WORKED EXAMPLES (illustrate the required depth and tone — do not reuse this content; every example below is about an unrelated topic and exists only to calibrate quality)
+
+A quiz item that clears the bar in Rule 2 (every distractor is a real misconception, not a random wrong answer):
+{
+  "question": "A function f is defined as f(x) = 1/x for x != 0. Why is f NOT continuous on all of R, even though it is continuous everywhere it is defined?",
+  "options": [
+    "It is not continuous because it is undefined at x = 0, so continuity on R fails at that point by definition.",
+    "It is not continuous because its graph is curved rather than a straight line.",
+    "It is actually continuous on all of R, since continuity only needs to hold everywhere the function is defined.",
+    "It is not continuous because 1/x approaches infinity, and infinity is not a real number students can graph."
+  ],
+  "correctAnswer": "It is not continuous because it is undefined at x = 0, so continuity on R fails at that point by definition.",
+  "explanation": "Continuity on a set requires the function to be defined and continuous at every point of that set. Since f is undefined at x = 0, it cannot be continuous on all of R by definition — this is distinct from asking whether it's continuous on its domain (R minus 0), where it in fact is. The 'curved graph' distractor confuses continuity with linearity; the 'undefined everywhere it's continuous' distractor is a common but incorrect shortcut students take; the infinity distractor conflates an unbounded limit with a JavaScript/graphing-tool artifact rather than the mathematical definition.",
+  "difficulty": "medium",
+  "concept_tested": "Continuity on a domain vs. continuity on a superset"
+}
+
+A flashcard with the expected depth (not a bare vocabulary flip):
+{
+  "front": "Why does binary search require the input to be sorted first?",
+  "back": "Its core step — comparing the target to the middle element to decide which half to discard — is only valid if every element to one side is guaranteed smaller (or larger) than the middle. An unsorted array breaks that guarantee, so a whole half could be wrongly discarded.",
+  "category": "mistake",
+  "prompt_type": "QA",
+  "retention_hint": "Picture a phone book shuffled at random — flipping to the middle tells you nothing about which half to search next."
+}
+
+A practice task with a genuinely complete solution:
+{
+  "task": "Trace binary search on the sorted array [3, 9, 14, 22, 37, 41, 58] searching for the target value 41. Show low/high/mid at every iteration.",
+  "difficulty": "medium",
+  "hint": "Start with low = 0 and high = 6 (the last valid index), and compute mid as the integer floor of (low + high) / 2.",
+  "solution": "Iteration 1: low=0, high=6, mid=3 -> array[3]=22. Since 22 < 41, discard the left half: low becomes mid+1=4. Iteration 2: low=4, high=6, mid=5 -> array[5]=41. Since 41 == target, the search terminates successfully at index 5. Total comparisons: 2 — matching the expected ceil(log2(7)) = 3 upper bound for a 7-element array.",
+  "concepts_used": ["binary search", "sorted array invariant", "logarithmic time complexity"]
+}
 
 ---
 
@@ -166,6 +207,9 @@ Your goal is to transform a raw lecture transcript or presentation slides into a
   "learning_objectives": ["String (Must begin with measurable Bloom's Taxonomy verbs: Design, Analyze, Evaluate, Solve...)"],
   "prerequisites": ["String"],
   "recommended_next_steps": ["String"],
+  "transcription_corrections": [
+    { "original": "String (the mis-transcribed word/phrase as it appeared in the source)", "corrected": "String (the corrected technical term you used instead)" }
+  ],
   "chatbot_context": {
     "lecture_overview": "String",
     "key_takeaways": ["String", "String", "String"],
@@ -274,13 +318,19 @@ export const REGENERATABLE_SECTIONS = {
   },
 };
 
-export function buildRegenerateSystemPrompt(section, counts) {
+export function buildRegenerateSystemPrompt(section, counts, isMultiSource = false) {
   const spec = REGENERATABLE_SECTIONS[section];
   const instructions = typeof spec.instructions === "function" ? spec.instructions(counts) : spec.instructions;
+  // Regeneration re-sends the full transcript, which for a multi-source
+  // package still contains the "=== SOURCE N: filename ===" markers — without
+  // repeating the multi-source contract here, the model has no instructions
+  // for those markers and (for "summary" especially) drops the
+  // source_index/source_title tagging the rest of the document relies on.
+  const multiSourceBlock = isMultiSource ? `\n${MULTI_SOURCE_INSTRUCTIONS}\n` : "";
   return `You are an elite Educational Technology AI agent. Regenerate the single requested JSON property section based on the following specific instructions:
 
 ${instructions}
-
+${multiSourceBlock}
 STRICT OUTPUT FORMAT: Return ONLY the raw JSON object containing exactly the top-level key: "${spec.key}". No explanations, no markdown blocks, no formatting anomalies. Double escape all LaTeX backslashes (\`\\\\\\\\\`).`;
 }
 
@@ -324,4 +374,36 @@ ${instruction}
 * Answer in 3 to 6 high-impact sentences (or a short interactive question/code trace structure if performing a bug_hunt or practice check).
 * Avoid lazy intros like "Sure, here is...". Dive straight into the core value.
 * If rendering formulas, state diagrams, or structural symbols, use LaTeX ($inline$ or $$display$$) or Mermaid code strings where appropriate. Keep formatting strictly plain-text without markdown headers (\`#\`).`;
+}
+
+// --- AI Tutor chat (grounded Q&A over the generated package) --------------
+
+// Grounds the tutor in the FULL chatbot_context (previously only 3 of its 6
+// fields were even passed in) plus core_concepts/glossary, with the same
+// pedagogical rigor and length discipline as the rest of the prompt suite —
+// the original version of this prompt was a bare one-liner with no length
+// guidance, no formatting rules, and no defined behavior for off-topic or
+// unanswerable questions.
+export function buildChatSystemPrompt(pkgDoc) {
+  const ctx = pkgDoc.chatbot_context || {};
+  const glossaryTerms = (pkgDoc.glossary || []).map((g) => g.term).filter(Boolean);
+  const conceptTerms = (pkgDoc.core_concepts || []).map((c) => c.term).filter(Boolean);
+
+  return `You are an elite personal AI Tutor for a student studying "${pkgDoc.metadata?.video_title || "this lecture"}" (${pkgDoc.metadata?.subject || "General"}).
+
+[GROUNDING — the only material you may draw on]
+Full summary: ${pkgDoc.full_lecture_summary || "N/A"}
+Lecture overview: ${ctx.lecture_overview || "N/A"}
+Key takeaways: ${(ctx.key_takeaways || []).join("; ") || "N/A"}
+Important terms: ${(ctx.important_terms || []).join(", ") || glossaryTerms.join(", ") || "N/A"}
+Core concepts covered: ${conceptTerms.join(", ") || "N/A"}
+Rules/formulas/methods: ${(ctx.rules_formulas_or_methods || []).join("; ") || "N/A"}
+Common student confusion points: ${(ctx.student_confusion_points || []).join("; ") || "N/A"}
+
+[BEHAVIOR RULES]
+1. Answer ONLY questions about this lecture's material. If asked something unrelated or outside this grounding, briefly say it's outside this lecture's scope and redirect to what the package does cover — never fabricate content beyond the grounding above.
+2. Be concise by default: 2-5 sentences for a direct question. Only give a longer, structured answer when the student explicitly asks for more detail, a full derivation, or a step-by-step walkthrough.
+3. When a question touches a known student confusion point, address it explicitly rather than glossing over it.
+4. Formatting: use LaTeX ($inline$ or $$display$$, never \\(...\\) or \\[...\\]) for math, and Markdown (backticks for code, **bold** for emphasis, numbered lists for steps) — the frontend renders both. Do not wrap plain prose in a markdown header.
+5. No lazy filler ("Great question!", "Sure, here is..."). Start directly with the substance.`;
 }

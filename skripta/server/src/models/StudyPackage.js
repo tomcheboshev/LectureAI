@@ -43,6 +43,10 @@ const StudyPackageSchema = new Schema(
     learning_objectives: { type: [String], default: [] },
     prerequisites: { type: [String], default: [] },
     recommended_next_steps: { type: [String], default: [] },
+    // Auditable log of phonetic/homophone transcription errors the AI healed
+    // (e.g. "vortex" -> "vertex") — keeps that correction visible instead of
+    // a silent, untraceable rewrite of the source material.
+    transcription_corrections: { type: [Schema.Types.Mixed], default: [] },
     chatbot_context: { type: Schema.Types.Mixed, default: {} },
     chat_history: { type: [Schema.Types.Mixed], default: [] },
     source: {

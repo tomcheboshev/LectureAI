@@ -8,6 +8,8 @@ import mongoose from "mongoose";
 import authRouter from "./routes/auth.js";
 import packagesRouter from "./routes/packages.js";
 import chatRouter from "./routes/chat.js";
+import analyticsRouter from "./routes/analytics.js";
+import { reconcileStrandedJobs } from "./services/reconcileJobs.js";
 
 const app = express();
 
@@ -42,6 +44,7 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api/auth", authRouter);
 app.use("/api/packages", packagesRouter);
 app.use("/api/chat", chatRouter);
+app.use("/api/analytics", analyticsRouter);
 
 app.use((_req, res) => res.status(404).json({ error: "Not found." }));
 
@@ -74,6 +77,7 @@ async function start() {
 
   await mongoose.connect(MONGODB_URI);
   console.log("MongoDB connected:", MONGODB_URI);
+  await reconcileStrandedJobs();
   app.listen(PORT, () => console.log(`API on http://localhost:${PORT}`));
 }
 

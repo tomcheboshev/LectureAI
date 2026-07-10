@@ -20,11 +20,11 @@
         </span>
 
         <h1 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-1.5">
-          {{ status === "loading" ? "Verifying your email…" : status === "success" ? "Email verified" : "Verification failed" }}
+          {{ status === "loading" ? t("auth.verifyEmail.verifying") : status === "success" ? t("auth.verifyEmail.success") : t("auth.verifyEmail.failed") }}
         </h1>
         <p class="text-sm text-slate-500 dark:text-slate-400 mb-5">{{ message }}</p>
         <RouterLink :to="auth.isAuthenticated ? '/dashboard' : '/login'" class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover transition">
-          {{ auth.isAuthenticated ? "Go to dashboard" : "Log in" }}
+          {{ auth.isAuthenticated ? t("auth.verifyEmail.goToDashboard") : t("auth.verifyEmail.logIn") }}
         </RouterLink>
       </div>
     </div>
@@ -37,9 +37,11 @@ import { RouterLink, useRoute } from "vue-router";
 import { ArrowPathIcon, CheckCircleIcon, XCircleIcon } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useAuthStore } from "../stores/auth.js";
+import { useI18n } from "../composables/useI18n.js";
 
 const route = useRoute();
 const auth = useAuthStore();
+const { t } = useI18n();
 const status = ref("loading");
 const message = ref("");
 

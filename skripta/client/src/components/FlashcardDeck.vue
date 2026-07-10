@@ -1,50 +1,58 @@
 <template>
   <div class="max-w-xl mx-auto">
+    <EmptyState v-if="!flashcards || flashcards.length === 0" :icon="Squares2X2Icon" :title="t('flashcardDeck.emptyTitle')" :description="t('flashcardDeck.emptyDescription')" />
+
+    <template v-else>
     <div class="flex items-center justify-between mb-3 text-sm">
-      <p class="font-mono text-slate-500 dark:text-slate-400">Card {{ index + 1 }} / {{ cards.length }} · {{ current.category }}</p>
-      <p class="font-mono text-slate-500 dark:text-slate-400">{{ learned.size }} learned</p>
+      <p class="font-mono text-slate-500 dark:text-slate-400">{{ t("flashcardDeck.cardCounter", { current: index + 1, total: cards.length, category: current.category }) }}</p>
+      <p class="font-mono text-slate-500 dark:text-slate-400">{{ t("flashcardDeck.learnedCounter", { count: learned.size }) }}</p>
     </div>
 
     <button
       class="block w-full [perspective:1200px] mb-5"
-      :aria-label="flipped ? 'Show front' : 'Show back'"
+      :aria-label="flipped ? t('flashcardDeck.showFront') : t('flashcardDeck.showBack')"
       @click="flipped = !flipped"
     >
       <div class="relative w-full min-h-[240px] transition-transform duration-500 [transform-style:preserve-3d]" :class="flipped ? '[transform:rotateY(180deg)]' : ''">
         <div class="absolute inset-0 [backface-visibility:hidden] rounded-2xl border-2 border-slate-900 dark:border-white/20 bg-white dark:bg-surface-dark shadow-[4px_4px_0_var(--color-primary)] flex flex-col items-center justify-center p-8 text-center">
-          <span class="absolute top-3 left-4 font-mono text-[10px] tracking-widest text-slate-400">FRONT</span>
+          <span class="absolute top-3 left-4 font-mono text-[10px] tracking-widest text-slate-400">{{ t("flashcardDeck.front") }}</span>
           <CheckCircleIcon v-if="learned.has(current.front)" class="absolute top-3 right-4 w-5 h-5 text-success" />
           <p class="text-lg font-medium text-slate-900 dark:text-white" v-html="renderLatexText(current.front)"></p>
-          <span class="absolute bottom-3 text-xs text-slate-400">tap to flip</span>
+          <span class="absolute bottom-3 text-xs text-slate-400">{{ t("flashcardDeck.tapToFlip") }}</span>
         </div>
         <div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl border-2 border-primary bg-primary/5 dark:bg-primary/10 flex flex-col items-center justify-center p-8 text-center">
-          <span class="absolute top-3 left-4 font-mono text-[10px] tracking-widest text-slate-400">BACK</span>
+          <span class="absolute top-3 left-4 font-mono text-[10px] tracking-widest text-slate-400">{{ t("flashcardDeck.back") }}</span>
           <p class="text-base text-slate-800 dark:text-slate-100" v-html="renderLatexText(current.back)"></p>
         </div>
       </div>
     </button>
 
     <div class="flex flex-wrap items-center justify-center gap-2 mb-4">
-      <button class="btn-ghost" :disabled="index === 0" @click="move(-1)">← Prev</button>
+      <button class="btn-ghost" :disabled="index === 0" @click="move(-1)">← {{ t("flashcardDeck.prev") }}</button>
       <button class="btn-ghost" @click="toggleLearned">
-        <CheckCircleIcon class="w-4 h-4" /> {{ learned.has(current.front) ? "Learned" : "Mark as learned" }}
+        <CheckCircleIcon class="w-4 h-4" /> {{ learned.has(current.front) ? t("flashcardDeck.learned") : t("flashcardDeck.markAsLearned") }}
       </button>
-      <button class="btn-ghost" @click="shuffle"><ArrowPathIcon class="w-4 h-4" /> Shuffle</button>
-      <button class="btn-primary" :disabled="index === cards.length - 1" @click="move(1)">Next →</button>
+      <button class="btn-ghost" @click="shuffle"><ArrowPathIcon class="w-4 h-4" /> {{ t("flashcardDeck.shuffle") }}</button>
+      <button class="btn-primary" :disabled="index === cards.length - 1" @click="move(1)">{{ t("flashcardDeck.next") }} →</button>
     </div>
 
     <div class="flex justify-center gap-1.5">
       <span v-for="(_, i) in cards" :key="i" class="w-1.5 h-1.5 rounded-full transition-all" :class="i === index ? 'bg-primary w-4' : 'bg-slate-300 dark:bg-white/20'"></span>
     </div>
+    </template>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from "vue";
-import { CheckCircleIcon, ArrowPathIcon } from "@heroicons/vue/24/outline";
+import { CheckCircleIcon, ArrowPathIcon, Squares2X2Icon } from "@heroicons/vue/24/outline";
 import { renderLatexText } from "../composables/useLatex.js";
+import { useI18n } from "../composables/useI18n.js";
+import { api } from "../services/api.js";
+import EmptyState from "./ui/EmptyState.vue";
 
-const props = defineProps({ flashcards: { type: Array, required: true } });
+const { t } = useI18n();
+const props = defineProps({ flashcards: { type: Array, default: () => [] }, packageId: { type: String, default: "" } });
 
 const order = ref(props.flashcards.map((_, i) => i));
 const index = ref(0);
@@ -65,8 +73,16 @@ function shuffle() {
 }
 function toggleLearned() {
   const key = current.value.front;
-  learned.value.has(key) ? learned.value.delete(key) : learned.value.add(key);
+  const nowLearned = !learned.value.has(key);
+  nowLearned ? learned.value.add(key) : learned.value.delete(key);
   learned.value = new Set(learned.value);
+
+  if (props.packageId) {
+    const originalIndex = order.value[index.value];
+    // Best-effort engagement tracking — a failure here shouldn't block the
+    // student from continuing to review cards.
+    api.submitFlashcardReview(props.packageId, originalIndex, nowLearned).catch((e) => console.error("Failed to record flashcard review:", e));
+  }
 }
 </script>
 

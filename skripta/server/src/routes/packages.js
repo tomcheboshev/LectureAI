@@ -16,6 +16,9 @@ import {
   extractPptxText,
   extractSubtitleText,
 } from "../services/extract.js";
+import QuizAttempt from "../models/QuizAttempt.js";
+import FlashcardReview from "../models/FlashcardReview.js";
+import { recordActivity } from "../services/analytics/activity.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -53,7 +56,10 @@ function validateTitleAndSubject(video_title, subject) {
 async function assertPackageLimit(ownerId, plan) {
   const limits = planLimits(plan);
   if (limits.maxPackages === Infinity) return;
-  const count = await StudyPackage.countDocuments({ owner: ownerId });
+  // Failed generations don't count against the quota — a package that never
+  // produced usable content shouldn't permanently occupy one of the user's
+  // limited slots.
+  const count = await StudyPackage.countDocuments({ owner: ownerId, status: { $ne: "failed" } });
   if (count >= limits.maxPackages) {
     throw upgradeError(
       "package_limit",
@@ -68,7 +74,7 @@ function fileExt(originalname) {
 }
 
 // Extracts text from one uploaded file based on its extension/mimetype.
-async function extractFileText(file) {
+async function extractFileText(file, ctx) {
   const ext = fileExt(file.originalname);
 
   if (ext === "pdf" || file.mimetype === "application/pdf") {
@@ -90,7 +96,7 @@ async function extractFileText(file) {
     return { text: file.buffer.toString("utf-8"), file_type: "md" };
   }
   if (IMAGE_MIMETYPES[ext]) {
-    return { text: await extractImageText(file.buffer, IMAGE_MIMETYPES[ext]), file_type: "image" };
+    return { text: await extractImageText(file.buffer, IMAGE_MIMETYPES[ext], ctx), file_type: "image" };
   }
 
   const e = new Error(`"${file.originalname}" has an unsupported file type. Supported: PDF, PPTX, DOCX, TXT, MD, SRT, VTT, PNG, JPG.`);
@@ -105,14 +111,15 @@ function userFacingMessage(err, fallback) {
 
 // --- Background generation jobs ------------------------------------------
 
-async function runTranscriptGeneration(id, { video_title, subject, difficulty, transcript }) {
+async function runTranscriptGeneration(id, ownerId, { video_title, subject, difficulty, transcript }) {
   try {
     await StudyPackage.updateOne({ _id: id }, { status: "generating", progress: 35 });
-    const pkg = await generateStudyPackage({ video_title, subject, difficulty, transcript });
+    const pkg = await generateStudyPackage({ video_title, subject, difficulty, transcript }, { ownerId, packageId: id });
     await StudyPackage.updateOne(
       { _id: id },
       { ...pkg, raw_transcript: transcript, status: "completed", progress: 100, $unset: { generationError: "" } }
     );
+    recordActivity(ownerId, "packagesGenerated");
   } catch (err) {
     console.error("Background generation failed:", err);
     await StudyPackage.updateOne(
@@ -122,7 +129,7 @@ async function runTranscriptGeneration(id, { video_title, subject, difficulty, t
   }
 }
 
-async function runYoutubeGeneration(id, { url, subject, difficulty, video_title }) {
+async function runYoutubeGeneration(id, ownerId, { url, subject, difficulty, video_title }) {
   try {
     await StudyPackage.updateOne({ _id: id }, { status: "extracting", progress: 10 });
     const [metadata, transcriptData] = await Promise.all([fetchYoutubeMetadata(url).catch(() => ({})), fetchYoutubeTranscript(url)]);
@@ -143,11 +150,15 @@ async function runYoutubeGeneration(id, { url, subject, difficulty, video_title 
       }
     );
 
-    const pkg = await generateStudyPackage({ video_title: resolvedTitle, subject, difficulty, transcript: transcriptData.text });
+    const pkg = await generateStudyPackage(
+      { video_title: resolvedTitle, subject, difficulty, transcript: transcriptData.text },
+      { ownerId, packageId: id }
+    );
     await StudyPackage.updateOne(
       { _id: id },
       { ...pkg, raw_transcript: transcriptData.text, status: "completed", progress: 100, $unset: { generationError: "" } }
     );
+    recordActivity(ownerId, "packagesGenerated");
   } catch (err) {
     console.error("Background YouTube generation failed:", err);
     await StudyPackage.updateOne(
@@ -157,7 +168,7 @@ async function runYoutubeGeneration(id, { url, subject, difficulty, video_title 
   }
 }
 
-async function runFilesGeneration(id, { files, video_title, subject, difficulty }) {
+async function runFilesGeneration(id, ownerId, { files, video_title, subject, difficulty }) {
   try {
     await StudyPackage.updateOne({ _id: id }, { status: "extracting", progress: 10 });
 
@@ -167,7 +178,7 @@ async function runFilesGeneration(id, { files, video_title, subject, difficulty 
     // its own, before generation even starts.
     const extracted = [];
     for (let order = 0; order < files.length; order++) {
-      const { text, file_type } = await extractFileText(files[order]);
+      const { text, file_type } = await extractFileText(files[order], { ownerId, packageId: id });
       extracted.push({ filename: files[order].originalname, file_type, order, extracted_text: text });
     }
 
@@ -199,13 +210,17 @@ async function runFilesGeneration(id, { files, video_title, subject, difficulty 
 
     const pkg =
       extracted.length === 1
-        ? await generateStudyPackage({ video_title: resolvedTitle, subject, difficulty, transcript: extracted[0].extracted_text })
-        : await generateStudyPackageFromSources({ video_title, subject, difficulty, sources: extracted });
+        ? await generateStudyPackage(
+            { video_title: resolvedTitle, subject, difficulty, transcript: extracted[0].extracted_text },
+            { ownerId, packageId: id }
+          )
+        : await generateStudyPackageFromSources({ video_title, subject, difficulty, sources: extracted }, { ownerId, packageId: id });
 
     await StudyPackage.updateOne(
       { _id: id },
       { ...pkg, raw_transcript: combinedText, status: "completed", progress: 100, $unset: { generationError: "" } }
     );
+    recordActivity(ownerId, "packagesGenerated");
   } catch (err) {
     console.error("Background multi-file generation failed:", err);
     await StudyPackage.updateOne(
@@ -236,7 +251,7 @@ router.post("/generate", async (req, res) => {
       source: { type: "transcript" },
     });
 
-    enqueue(() => runTranscriptGeneration(doc._id, { video_title, subject, difficulty, transcript }), {
+    enqueue(() => runTranscriptGeneration(doc._id, req.userId, { video_title, subject, difficulty, transcript }), {
       priority: planLimits(req.user.plan).priority,
     });
     res.status(202).json({ _id: doc._id, status: doc.status });
@@ -265,7 +280,7 @@ router.post("/from-youtube", async (req, res) => {
       source: { type: "youtube", url },
     });
 
-    enqueue(() => runYoutubeGeneration(doc._id, { url, subject, difficulty, video_title }), {
+    enqueue(() => runYoutubeGeneration(doc._id, req.userId, { url, subject, difficulty, video_title }), {
       priority: planLimits(req.user.plan).priority,
     });
     res.status(202).json({ _id: doc._id, status: doc.status });
@@ -321,7 +336,7 @@ router.post("/from-files", upload.array("files", HARD_FILE_COUNT_CAP), async (re
       source: { type: "mixed" },
     });
 
-    enqueue(() => runFilesGeneration(doc._id, { files, video_title, subject, difficulty }), { priority: limits.priority });
+    enqueue(() => runFilesGeneration(doc._id, req.userId, { files, video_title, subject, difficulty }), { priority: limits.priority });
     res.status(202).json({ _id: doc._id, status: doc.status });
   } catch (err) {
     console.error("Multi-file generation failed:", err);
@@ -397,7 +412,9 @@ router.patch("/:id", async (req, res) => {
 // POST /api/packages/:id/duplicate — instant copy of already-generated content
 router.post("/:id/duplicate", async (req, res) => {
   try {
-    const original = await StudyPackage.findOne({ _id: req.params.id, owner: req.userId }).select("+raw_transcript").lean();
+    const original = await StudyPackage.findOne({ _id: req.params.id, owner: req.userId })
+      .select("+raw_transcript +sources.extracted_text")
+      .lean();
     if (!original) return res.status(404).json({ error: "Study package not found." });
     if (original.status !== "completed") {
       return res.status(400).json({ error: "Only a fully generated study package can be duplicated." });
@@ -463,6 +480,85 @@ router.post("/:id/explain", async (req, res) => {
   } catch (err) {
     console.error("Explain failed:", err);
     respondError(res, err, "Explain failed. Check the server logs and try again.");
+  }
+});
+
+// POST /api/packages/:id/quiz-attempts  { answers: [{ questionIndex, selected, correct }] }
+// Records a completed quiz run (QuizPlayer.vue submits once, at the finish
+// screen). The client already computed correctness locally for instant
+// feedback — there's no secret to protect here — so this recomputes against
+// the server's own quiz copy as a data-quality check, not a security gate,
+// and doesn't hard-reject a client/server mismatch.
+router.post("/:id/quiz-attempts", async (req, res) => {
+  try {
+    const { answers } = req.body;
+    if (!Array.isArray(answers) || answers.length === 0) {
+      return res.status(400).json({ error: "answers array is required." });
+    }
+
+    const doc = await StudyPackage.findOne({ _id: req.params.id, owner: req.userId }, "quiz status").lean();
+    if (!doc) return res.status(404).json({ error: "Study package not found." });
+    if (doc.status !== "completed") return res.status(409).json({ error: "This study package is still generating." });
+
+    const quiz = doc.quiz || [];
+    const built = answers
+      .filter((a) => Number.isInteger(a.questionIndex) && quiz[a.questionIndex])
+      .map((a) => {
+        const q = quiz[a.questionIndex];
+        return {
+          questionIndex: a.questionIndex,
+          question: q.question,
+          concept_tested: q.concept_tested,
+          difficulty: q.difficulty,
+          selected: a.selected,
+          correct: a.selected === q.correctAnswer,
+        };
+      });
+    if (built.length === 0) return res.status(400).json({ error: "No answers matched this package's current quiz." });
+
+    const score = built.filter((a) => a.correct).length;
+    const total = built.length;
+    const attempt = await QuizAttempt.create({
+      owner: req.userId,
+      package: req.params.id,
+      answers: built,
+      score,
+      total,
+      scorePct: Math.round((score / total) * 100),
+    });
+    recordActivity(req.userId, "quizAttempts");
+
+    res.status(201).json({ _id: attempt._id, score, total, scorePct: attempt.scorePct });
+  } catch (err) {
+    console.error("Recording quiz attempt failed:", err);
+    respondError(res, err, "Could not record this quiz attempt.");
+  }
+});
+
+// POST /api/packages/:id/flashcard-reviews  { cardIndex, known }
+router.post("/:id/flashcard-reviews", async (req, res) => {
+  try {
+    const { cardIndex, known } = req.body;
+    if (!Number.isInteger(cardIndex) || typeof known !== "boolean") {
+      return res.status(400).json({ error: "cardIndex (integer) and known (boolean) are required." });
+    }
+
+    const doc = await StudyPackage.findOne({ _id: req.params.id, owner: req.userId }, "flashcards status").lean();
+    if (!doc) return res.status(404).json({ error: "Study package not found." });
+    const card = doc.flashcards?.[cardIndex];
+    if (!card) return res.status(400).json({ error: "cardIndex is out of range for this package's current flashcards." });
+
+    const updated = await FlashcardReview.findOneAndUpdate(
+      { owner: req.userId, package: req.params.id, cardIndex },
+      { $set: { known, front: card.front, lastReviewedAt: new Date() }, $inc: { reviewCount: 1 } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    recordActivity(req.userId, "flashcardReviews");
+
+    res.json({ ok: true, reviewCount: updated.reviewCount });
+  } catch (err) {
+    console.error("Recording flashcard review failed:", err);
+    respondError(res, err, "Could not record this flashcard review.");
   }
 });
 
