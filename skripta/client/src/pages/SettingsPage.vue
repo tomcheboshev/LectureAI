@@ -53,7 +53,21 @@
     <!-- Subscription -->
     <section class="rounded-2xl border border-slate-200 dark:border-border-dark p-5 mb-5">
       <h3 class="font-display font-bold mb-1">{{ t("settings.subscription") }}</h3>
-      <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t("settings.currentPlan") }}: <span class="font-semibold capitalize text-slate-700 dark:text-slate-200">{{ auth.user?.plan }}</span></p>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">
+        {{ t("settings.currentPlan") }}: <span class="font-semibold capitalize text-slate-700 dark:text-slate-200">{{ auth.user?.plan }}</span>
+        <span v-if="sub?.isStudent" class="badge badge-primary ml-1.5">{{ t("settings.billing.student") }}</span>
+        <span v-if="sub?.billingInterval" class="text-slate-400"> · {{ t(`settings.billing.interval.${sub.billingInterval}`) }}</span>
+      </p>
+
+      <p v-if="statusLine" class="text-sm mb-3" :class="sub?.subscriptionStatus === 'past_due' ? 'text-danger' : 'text-slate-600 dark:text-slate-300'">
+        {{ statusLine }}
+      </p>
+      <p v-if="sub?.cancelAtPeriodEnd && sub?.currentPeriodEnd" class="text-sm text-warning mb-3">
+        {{ t("settings.billing.cancelsOn", { date: formatDate(sub.currentPeriodEnd) }) }}
+      </p>
+      <div v-if="sub?.inGracePeriod" class="rounded-xl border border-danger/30 bg-danger/5 text-danger text-sm px-4 py-2.5 mb-4">
+        {{ t("settings.billing.gracePeriod", { date: formatDate(sub.gracePeriodEndsAt) }) }}
+      </div>
 
       <div class="grid sm:grid-cols-2 gap-3 mb-4" v-if="auth.limits">
         <div class="rounded-xl bg-slate-50 dark:bg-white/5 px-4 py-3">
@@ -74,13 +88,50 @@
         </div>
       </div>
 
-      <button v-if="auth.user?.plan === 'free'" :disabled="upgrading" class="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-40 transition" @click="doUpgrade">
-        <SparklesIcon class="w-4 h-4" /> {{ upgrading ? t("settings.upgrading") : t("common.upgradeToPro") }}
-      </button>
-      <button v-else :disabled="upgrading" class="inline-flex items-center gap-2 rounded-xl border-2 border-slate-200 dark:border-border-dark px-4 py-2 text-sm font-semibold hover:border-slate-300 disabled:opacity-40 transition" @click="doDowngrade">
-        {{ upgrading ? t("settings.switching") : t("settings.switchToFree") }}
-      </button>
-      <p class="text-[11px] text-slate-400 mt-2">{{ t("settings.noPaymentProcessor") }}</p>
+      <div class="flex flex-wrap gap-2 mb-5">
+        <button v-if="auth.user?.plan === 'free'" class="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover transition" @click="upgrade.show()">
+          <SparklesIcon class="w-4 h-4" /> {{ t("common.upgradeToPro") }}
+        </button>
+        <button
+          v-if="sub?.hasBillingAccount"
+          :disabled="openingPortal"
+          class="inline-flex items-center gap-2 rounded-xl border-2 border-slate-200 dark:border-border-dark px-4 py-2 text-sm font-semibold hover:border-slate-300 disabled:opacity-40 transition"
+          @click="doManageBilling"
+        >
+          <ArrowPathIcon v-if="openingPortal" class="w-4 h-4 animate-spin" />
+          {{ openingPortal ? t("settings.upgrading") : t("settings.manageBilling") }}
+        </button>
+      </div>
+
+      <!-- Billing history -->
+      <div v-if="sub?.hasBillingAccount">
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">{{ t("settings.billing.history") }}</h4>
+        <p v-if="billing.invoices.length === 0" class="text-sm text-slate-400">{{ t("settings.billing.historyEmpty") }}</p>
+        <ul v-else class="flex flex-col gap-1.5">
+          <li
+            v-for="inv in billing.invoices"
+            :key="inv._id"
+            class="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm"
+          >
+            <span class="text-slate-600 dark:text-slate-300">{{ formatDate(inv.createdAt) }}</span>
+            <span class="font-medium text-slate-800 dark:text-slate-100">{{ (inv.amountPaid / 100).toFixed(2) }} {{ inv.currency?.toUpperCase() }}</span>
+            <span
+              class="badge"
+              :class="inv.status === 'paid' ? 'badge-success' : inv.status === 'open' ? 'badge-warning' : 'badge-danger'"
+            >{{ inv.status }}</span>
+            <a v-if="inv.invoicePdfUrl" :href="inv.invoicePdfUrl" target="_blank" rel="noopener" class="text-primary hover:underline font-medium">{{ t("settings.billing.download") }}</a>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Support -->
+    <section class="rounded-2xl border border-slate-200 dark:border-border-dark p-5 mb-5">
+      <h3 class="font-display font-bold mb-1">{{ t("settings.support") }}</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t("settings.supportDescription") }}</p>
+      <RouterLink to="/settings/support" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 transition">
+        {{ t("settings.openSupport") }}
+      </RouterLink>
     </section>
 
     <!-- Appearance -->
@@ -159,11 +210,13 @@
 </template>
 
 <script setup>
-import { reactive, ref, computed } from "vue";
-import { useRouter } from "vue-router";
-import { SunIcon, MoonIcon, SparklesIcon, TrashIcon } from "@heroicons/vue/24/outline";
+import { reactive, ref, computed, onMounted } from "vue";
+import { useRouter, useRoute, RouterLink } from "vue-router";
+import { SunIcon, MoonIcon, SparklesIcon, TrashIcon, ArrowPathIcon } from "@heroicons/vue/24/outline";
 import { useThemeStore } from "../stores/theme.js";
 import { useAuthStore } from "../stores/auth.js";
+import { useBillingStore } from "../stores/billing.js";
+import { useUpgradeStore } from "../stores/upgrade.js";
 import { useLocaleStore } from "../stores/locale.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../composables/useI18n.js";
@@ -173,9 +226,12 @@ import { api } from "../services/api.js";
 
 const theme = useThemeStore();
 const auth = useAuthStore();
+const billing = useBillingStore();
+const upgrade = useUpgradeStore();
 const locale = useLocaleStore();
 const toast = useToastStore();
 const router = useRouter();
+const route = useRoute();
 const { t, lang } = useI18n();
 
 const profileForm = reactive({ name: auth.user?.name || "" });
@@ -223,29 +279,53 @@ async function changePassword() {
   }
 }
 
-const upgrading = ref(false);
-async function doUpgrade() {
-  upgrading.value = true;
+const sub = computed(() => billing.subscription);
+const statusLine = computed(() => {
+  const status = sub.value?.subscriptionStatus;
+  if (!status) return "";
+  const date = status === "trialing" ? sub.value.trialEndsAt : sub.value.currentPeriodEnd;
+  return t(`settings.billing.status.${status}`, { date: date ? formatDate(date) : "" });
+});
+function formatDate(d) {
+  return new Date(d).toLocaleDateString(lang.value, { day: "numeric", month: "short", year: "numeric" });
+}
+
+const openingPortal = ref(false);
+async function doManageBilling() {
+  openingPortal.value = true;
   try {
-    await auth.upgrade("pro");
+    await billing.openBillingPortal();
+    // openBillingPortal redirects the browser away on success — loading
+    // stays true through the navigation.
+  } catch (e) {
+    reportApiError(e);
+    openingPortal.value = false;
+  }
+}
+
+onMounted(async () => {
+  try {
+    await billing.fetchSubscription();
+    if (billing.subscription?.hasBillingAccount) await billing.fetchInvoices();
+  } catch (e) {
+    reportApiError(e);
+  }
+
+  // Returning from Stripe Checkout: refresh auth state (the webhook that
+  // actually activates the subscription may land a moment before or after
+  // this redirect, so re-fetching /auth/me picks up whichever already
+  // happened rather than trusting the query param alone).
+  const checkoutResult = route.query.checkout;
+  if (checkoutResult === "success") {
+    await auth.fetchMe();
+    await billing.fetchSubscription();
     toast.success(t("toasts.upgradedToPro"));
-  } catch (e) {
-    reportApiError(e);
-  } finally {
-    upgrading.value = false;
+    router.replace({ query: {} });
+  } else if (checkoutResult === "cancel") {
+    toast.error(t("toasts.checkoutCanceled"));
+    router.replace({ query: {} });
   }
-}
-async function doDowngrade() {
-  upgrading.value = true;
-  try {
-    await auth.upgrade("free");
-    toast.success(t("toasts.downgradedToFree"));
-  } catch (e) {
-    reportApiError(e);
-  } finally {
-    upgrading.value = false;
-  }
-}
+});
 
 const confirmDeleteOpen = ref(false);
 useModalBehavior(confirmDeleteOpen, () => (confirmDeleteOpen.value = false));

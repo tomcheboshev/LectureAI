@@ -18,6 +18,11 @@ const StudyPackageSchema = new Schema(
       index: true,
     },
     progress: { type: Number, default: 100, min: 0, max: 100 },
+    // Human-readable detail shown alongside the progress bar during
+    // multi-file/chunked generation, e.g. "Summarizing lecture2.pptx (2/4)…"
+    // — not set for the single-call path, which has no meaningful
+    // per-document breakdown to report.
+    progressDetail: String,
     generationError: String,
 
     metadata: {

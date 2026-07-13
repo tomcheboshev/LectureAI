@@ -16,6 +16,15 @@
       <component :is="item.icon" class="w-5 h-5 shrink-0" />
       {{ t(item.labelKey) }}
     </RouterLink>
+    <RouterLink
+      v-if="auth.user?.role === 'admin'"
+      to="/admin"
+      class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5"
+      @click="$emit('navigate')"
+    >
+      <ShieldCheckIcon class="w-5 h-5 shrink-0" />
+      {{ t("nav.admin") }}
+    </RouterLink>
   </nav>
 
   <div class="mt-auto pt-6">
@@ -28,12 +37,14 @@
 
 <script setup>
 import { useRoute, RouterLink } from "vue-router";
-import { HomeIcon, PlusCircleIcon, Cog6ToothIcon, ChartBarIcon } from "@heroicons/vue/24/outline";
+import { HomeIcon, PlusCircleIcon, Cog6ToothIcon, ChartBarIcon, ShieldCheckIcon } from "@heroicons/vue/24/outline";
 import { useI18n } from "../composables/useI18n.js";
+import { useAuthStore } from "../stores/auth.js";
 
 defineEmits(["navigate"]);
 const route = useRoute();
 const { t } = useI18n();
+const auth = useAuthStore();
 
 const nav = [
   { to: "/dashboard", labelKey: "nav.dashboard", icon: HomeIcon },

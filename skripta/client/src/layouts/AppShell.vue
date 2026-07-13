@@ -62,8 +62,8 @@
 
       <main class="flex-1 min-w-0">
         <RouterView v-slot="{ Component }">
-          <Transition name="page" mode="out-in">
-            <component :is="Component" />
+          <Transition name="page">
+            <component :is="Component" :key="$route.fullPath" />
           </Transition>
         </RouterView>
       </main>

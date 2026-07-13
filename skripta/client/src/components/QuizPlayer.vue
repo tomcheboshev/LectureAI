@@ -16,14 +16,14 @@
           v-for="opt in current.options"
           :key="opt"
           :disabled="answered"
-          class="text-left px-4 py-3 rounded-xl border-2 font-medium text-sm transition"
+          class="text-left px-4 py-3.5 rounded-xl border-2 font-medium text-base transition"
           :class="optionClass(opt)"
           @click="pick(opt)"
           v-html="renderLatexText(opt)"
         ></button>
       </div>
 
-      <div v-if="answered" class="mt-5 rounded-xl border-2 p-4 text-sm" :class="picked === current.correctAnswer ? 'border-success/40 bg-success/5 text-success' : 'border-danger/40 bg-danger/5 text-danger'">
+      <div v-if="answered" class="mt-5 rounded-xl border-2 p-5 text-base leading-relaxed" :class="picked === current.correctAnswer ? 'border-success/40 bg-success/5 text-success' : 'border-danger/40 bg-danger/5 text-danger'">
         <strong>{{ picked === current.correctAnswer ? t("quizPlayer.correct") : t("quizPlayer.notQuite") }}</strong>
         <span class="text-slate-600 dark:text-slate-300" v-html="' ' + renderLatexText(current.explanation)"></span>
       </div>

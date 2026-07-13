@@ -1,5 +1,6 @@
 import { verifyAccessToken } from "../services/auth/tokens.js";
 import User from "../models/User.js";
+import { syncEffectivePlan } from "../services/billing/subscription.js";
 
 function extractToken(req) {
   const header = req.headers.authorization || "";
@@ -23,6 +24,11 @@ export async function requireAuth(req, res, next) {
   try {
     const user = await User.findById(payload.sub);
     if (!user) return res.status(401).json({ error: "Invalid or expired session. Please log in again." });
+    if (user.banned) return res.status(403).json({ error: "Your account has been suspended.", reason: "account_banned" });
+
+    // Lazily expires a "pro" plan whose grace period has lapsed — see
+    // syncEffectivePlan's own comment for why this replaces a cron job.
+    await syncEffectivePlan(user);
 
     req.userId = user._id;
     req.user = user;

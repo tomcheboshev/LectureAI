@@ -16,6 +16,7 @@ import {
   PASSWORD_RESET_TTL_MS,
 } from "../services/auth/tokens.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../services/auth/email.js";
+import { logError } from "../utils/logger.js";
 
 const router = Router();
 const isDev = process.env.NODE_ENV !== "production";
@@ -42,6 +43,7 @@ function sanitizeUser(user) {
     id: user._id,
     name: user.name,
     email: user.email,
+    role: user.role,
     plan: user.plan,
     emailVerified: user.emailVerified,
     createdAt: user.createdAt,
@@ -105,7 +107,7 @@ router.post("/register", authLimiter, async (req, res) => {
       ...(isDev ? { devVerificationLink: devLink } : {}),
     });
   } catch (err) {
-    console.error("Register failed:", err);
+    logError(err, { route: "register" });
     respondError(res, err, "Registration failed. Please try again.");
   }
 });
@@ -119,11 +121,15 @@ router.post("/login", authLimiter, async (req, res) => {
     const user = await User.findOne({ email: String(email).trim().toLowerCase() }).select("+passwordHash");
     const match = user && (await comparePassword(password, user.passwordHash));
     if (!match) return res.status(401).json({ error: "Invalid email or password." });
+    // Defense in depth: requireAuth already blocks banned users on every
+    // subsequent request, but this stops a banned user from even minting a
+    // fresh token in the first place.
+    if (user.banned) return res.status(403).json({ error: "Your account has been suspended.", reason: "account_banned" });
 
     const accessToken = await issueTokens(res, user, req);
     res.json({ user: sanitizeUser(user), accessToken });
   } catch (err) {
-    console.error("Login failed:", err);
+    logError(err, { route: "login" });
     respondError(res, err, "Login failed. Please try again.");
   }
 });
@@ -341,23 +347,10 @@ router.delete("/me", requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/auth/upgrade  { plan }
-// No payment processor is wired up yet, so this directly flips the user's
-// plan instead of running a checkout flow. It's a real, working plan change
-// (limits/watermarks/etc. all respect it) — swap in a Stripe Checkout
-// session + webhook here once billing is ready, without touching anything
-// downstream that reads req.user.plan.
-router.post("/upgrade", requireAuth, async (req, res) => {
-  try {
-    const { plan } = req.body;
-    if (!["free", "pro"].includes(plan)) return res.status(400).json({ error: "plan must be \"free\" or \"pro\"." });
-    req.user.plan = plan;
-    await req.user.save();
-    res.json({ user: sanitizeUser(req.user) });
-  } catch (err) {
-    console.error("Upgrade failed:", err);
-    res.status(500).json({ error: "Could not update your plan." });
-  }
-});
+// The old POST /api/auth/upgrade directly flipped req.user.plan with no
+// payment involved — a real payment processor is wired up now (see
+// routes/billing.js: /checkout starts a subscription, /portal manages an
+// existing one), so that stub is gone. Leaving it in would let anyone grant
+// themselves "pro" for free with a single authenticated request.
 
 export default router;

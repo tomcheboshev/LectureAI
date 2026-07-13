@@ -1,7 +1,7 @@
 import axios from "axios";
 import { useI18n } from "../composables/useI18n.js";
 
-const http = axios.create({ baseURL: "/api", withCredentials: true });
+export const http = axios.create({ baseURL: "/api", withCredentials: true });
 
 // The access token lives in memory only (set by the auth store on
 // login/refresh) — never localStorage, to keep it out of reach of any
@@ -91,13 +91,20 @@ export const api = {
   getMe: () => http.get("/auth/me").then((r) => r.data),
   updateProfile: (payload) => http.patch("/auth/me", payload).then((r) => r.data),
   deleteAccount: (payload) => http.delete("/auth/me", { data: payload }).then((r) => r.data),
-  upgradePlan: (plan) => http.post("/auth/upgrade", { plan }).then((r) => r.data),
+
+  // Billing (Stripe Checkout for new subscriptions, Stripe's own hosted
+  // Billing Portal for upgrade/downgrade/cancel/resume/invoices).
+  createCheckoutSession: (plan) => http.post("/billing/checkout", { plan }).then((r) => r.data),
+  createBillingPortalSession: () => http.post("/billing/portal").then((r) => r.data),
+  getSubscription: () => http.get("/billing/subscription").then((r) => r.data),
+  getInvoices: () => http.get("/billing/invoices").then((r) => r.data),
 
   // Study packages
   listPackages: () => http.get("/packages").then((r) => r.data),
   getPackage: (id) => http.get(`/packages/${id}`).then((r) => r.data),
   renamePackage: (id, video_title) => http.patch(`/packages/${id}`, { video_title }).then((r) => r.data),
   duplicatePackage: (id) => http.post(`/packages/${id}/duplicate`).then((r) => r.data),
+  retryPackage: (id) => http.post(`/packages/${id}/retry`).then((r) => r.data),
   deletePackage: (id) => http.delete(`/packages/${id}`).then((r) => r.data),
   generate: (payload) => http.post("/packages/generate", payload).then((r) => r.data),
   generateFromYoutube: (payload) => http.post("/packages/from-youtube", payload).then((r) => r.data),
@@ -115,4 +122,10 @@ export const api = {
   submitQuizAttempt: (id, answers) => http.post(`/packages/${id}/quiz-attempts`, { answers }).then((r) => r.data),
   submitFlashcardReview: (id, cardIndex, known) => http.post(`/packages/${id}/flashcard-reviews`, { cardIndex, known }).then((r) => r.data),
   getAnalytics: () => http.get("/analytics").then((r) => r.data),
+
+  // Support (own tickets — status-only, no reply thread) + public contact form
+  createSupportTicket: (payload) => http.post("/support", payload).then((r) => r.data),
+  listSupportTickets: () => http.get("/support").then((r) => r.data),
+  getSupportTicket: (id) => http.get(`/support/${id}`).then((r) => r.data),
+  submitContactMessage: (payload) => http.post("/contact", payload).then((r) => r.data),
 };

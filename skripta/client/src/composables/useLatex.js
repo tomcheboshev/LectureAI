@@ -15,21 +15,24 @@ function renderMath(expr, displayMode) {
   }
 }
 
-// Matches $$...$$ (block, tried first) or $...$ (inline) in one pass.
+// Matches $$...$$ (block, tried first) or $...$ (inline) in one pass, using
+// Pandoc's own tex_math_dollars rules: the opening $ must not be immediately
+// followed by whitespace, the closing $ must not be immediately preceded by
+// whitespace, and the closing $ must not be immediately followed by a digit.
 //
-// The inline branch requires the opening $ to NOT be immediately followed by
-// whitespace or a digit, and the closing $ to not be immediately preceded by
-// whitespace — the same convention Pandoc's tex_math_dollars extension uses.
-// Without this, a lazy match on prose like "costs $500 and the CPU costs
-// $300" spans from the first $ to the second (treating "500 and the CPU
-// costs " as a math expression) and leaves "300" as an orphaned, un-delimited
-// number — any currency amount in AI-generated content broke inline math
-// rendering for the rest of that line. The trade-off (accepted deliberately,
-// matching Pandoc's own convention) is that math starting with a bare digit
-// coefficient like "$2x+3$" no longer matches — acceptable here since this
-// app's formulas are prompted to use named variables/operators, not bare
-// leading coefficients.
-const MATH_PATTERN = /\$\$([\s\S]+?)\$\$|\$(?![\s\d])([^$\n]+?)(?<!\s)\$/g;
+// A digit is explicitly allowed right after the *opening* $ — math in this
+// app's content constantly starts with a bare numeral ("$2 \cdot 0.62 =
+// 1.24$", "$0.5 \cdot 2 = 1.0$"), so excluding that case (an earlier version
+// of this regex did) silently left the majority of worked-example formulas
+// as unrendered literal text. The original motivating bug — prose like
+// "costs $500 and the CPU costs $300" spanning from the first $ to the
+// second and leaving "300" orphaned — is already prevented by the
+// closing-side whitespace guard alone: the character right before the
+// second $ (a space, from "costs $300") fails `(?<!\s)`, so neither $ ever
+// matches as math and both are left as plain text. The trailing
+// not-followed-by-digit guard on the close additionally guards against a
+// pathological "$5$10" back-to-back case.
+const MATH_PATTERN = /\$\$([\s\S]+?)\$\$|\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\d)/g;
 
 /**
  * Scans RAW (unescaped) text once for $$...$$ / $...$ math segments,
@@ -53,14 +56,31 @@ export function renderLatexSegments(rawText) {
   return out;
 }
 
+// Inline formatting shared by every renderer in this app: LaTeX first (via
+// renderLatexSegments, which does its own HTML-escaping of everything that
+// isn't math) so **bold** markers inside a $...$ span are never misread as
+// literal asterisks, then bold/italic/inline-code on top of the result.
+// Lives here (not in useMarkdown.js) so useMarkdown.js can import it
+// without a circular dependency, since it already imports
+// renderLatexSegments from this module.
+export function renderInline(text) {
+  return renderLatexSegments(String(text ?? ""))
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
+}
+
 /**
- * Renders plain text that may contain LaTeX delimited by $$...$$ (block)
- * or $...$ (inline), escaping everything else. Safe for v-html: the only
- * unescaped HTML injected is KaTeX's own trusted output.
+ * Renders plain text that may contain LaTeX ($$...$$/$...$) plus inline
+ * markdown (**bold**, *italic*, `code`), escaping everything else. Safe for
+ * v-html: the only unescaped HTML injected is KaTeX's own trusted output
+ * plus the handful of inline tags this function itself adds. No block-level
+ * treatment (no headings/lists/tables) — for long-form content that needs
+ * that, use renderMarkdown from useMarkdown.js instead.
  */
 export function renderLatexText(text) {
   if (!text) return "";
-  return renderLatexSegments(String(text)).replace(/\n/g, "<br>");
+  return renderInline(text).replace(/\n/g, "<br>");
 }
 
 /**

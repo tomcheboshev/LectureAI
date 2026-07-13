@@ -229,6 +229,11 @@ const canSubmit = computed(() => {
 });
 
 async function submit() {
+  // The submit button is disabled while generating, but that's a rendered
+  // attribute — a fast double Enter-press (or a duplicate submit event) can
+  // fire before Vue re-renders it. Guarding synchronously here is what
+  // actually prevents a duplicate in-flight request.
+  if (generating.value) return;
   error.value = "";
   generating.value = true;
   try {

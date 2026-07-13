@@ -148,10 +148,80 @@ h1, h2, h3, h4 {
   padding: 0.8em 0.9em;
 }
 .prose-chat .code-block pre code.hljs { background: none; padding: 0; }
+.prose-chat .rich-heading { font-family: var(--font-display); font-weight: 700; margin: 0.6em 0 0.3em; font-size: 1em; }
+.prose-chat .rich-heading:first-child { margin-top: 0; }
+.prose-chat .callout { padding: 0.6em 0.8em; margin: 0.5em 0; font-size: 0.95em; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* Callout boxes (concept/example/tip/warning) — shared by rich-content-block
+   and prose-chat. Colors per product spec: blue = concept, green = example,
+   yellow = tip, orange/red = warning. */
+.callout {
+  display: flex;
+  gap: 0.7em;
+  border-radius: 0.85rem;
+  border-width: 1.5px;
+  border-style: solid;
+  padding: 0.85em 1em;
+  margin: 0.75em 0;
+}
+.callout-icon { flex-shrink: 0; font-size: 1.1em; line-height: 1.4; }
+.callout-body :where(p) { margin: 0 0 0.4em; }
+.callout-body :where(p:last-child) { margin-bottom: 0; }
+.callout-concept { background: color-mix(in srgb, #3b82f6 8%, transparent); border-color: color-mix(in srgb, #3b82f6 30%, transparent); }
+.callout-example { background: color-mix(in srgb, var(--color-success) 8%, transparent); border-color: color-mix(in srgb, var(--color-success) 30%, transparent); }
+.callout-tip { background: color-mix(in srgb, var(--color-warning) 10%, transparent); border-color: color-mix(in srgb, var(--color-warning) 35%, transparent); }
+.callout-warning { background: color-mix(in srgb, var(--color-danger) 8%, transparent); border-color: color-mix(in srgb, var(--color-danger) 30%, transparent); }
+
+/* Modern responsive tables for AI-generated content (transition tables,
+   comparison tables, data tables) — replaces raw "| a | b |" text that
+   previously rendered as literal pipe-delimited paragraphs. */
+.rich-table-wrap { overflow-x: auto; margin: 0.9em 0; border-radius: 0.75rem; border: 1px solid rgb(226 232 240); }
+.dark .rich-table-wrap { border-color: var(--color-border-dark); }
+.rich-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+.rich-table th, .rich-table td { padding: 0.6em 0.9em; text-align: left; white-space: nowrap; }
+.rich-table thead th {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  color: var(--color-primary);
+  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 0.85em;
+  border-bottom: 1.5px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+.rich-table tbody tr:nth-child(even) { background: color-mix(in srgb, currentColor 4%, transparent); }
+.rich-table tbody tr:not(:last-child) { border-bottom: 1px solid rgb(241 245 249); }
+.dark .rich-table tbody tr:not(:last-child) { border-bottom-color: var(--color-border-dark); }
+
+/* Rich, premium-textbook-style formatting for long-form generated content
+   (chapter descriptions, worked solutions, full lecture summaries) —
+   headings, paragraphs, lists, tables, callouts all at a comfortable
+   reading scale for extended study sessions. */
+.rich-content-block :where(p) { margin: 0 0 0.85em; }
+.rich-content-block :where(p:last-child) { margin-bottom: 0; }
+.rich-content-block :where(strong) { font-weight: 700; color: var(--color-primary); }
+.dark .rich-content-block :where(strong) { color: #a5b4fc; }
+.rich-content-block :where(ul, ol) { margin: 0.5em 0 0.9em; padding-left: 1.4em; }
+.rich-content-block :where(li) { margin-bottom: 0.4em; }
+.rich-content-block :where(code) {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  padding: 0.15em 0.45em;
+  border-radius: 5px;
+}
+.rich-content-block .rich-heading {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 1em 0 0.5em;
+  color: inherit;
+}
+.rich-content-block .rich-heading:first-child { margin-top: 0; }
+.rich-content-block h5.rich-heading { font-size: 1.05em; }
+.rich-content-block h6.rich-heading { font-size: 1em; }
 
 /* Shared form field style (auth pages, settings, upload) */
 .input-field {

@@ -1,13 +1,13 @@
 <template>
   <template v-for="(seg, i) in segments" :key="i">
     <MermaidDiagram v-if="seg.type === 'mermaid'" :code="seg.content" />
-    <span v-else v-html="renderLatexText(seg.content)"></span>
+    <div v-else class="rich-content-block" v-html="renderMarkdown(seg.content)"></div>
   </template>
 </template>
 
 <script setup>
 import { computed } from "vue";
-import { renderLatexText } from "../composables/useLatex.js";
+import { renderMarkdown } from "../composables/useMarkdown.js";
 import { splitMermaidSegments } from "../composables/useMermaid.js";
 import MermaidDiagram from "./MermaidDiagram.vue";
 

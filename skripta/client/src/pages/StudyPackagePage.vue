@@ -17,9 +17,19 @@
     <h1 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-2">{{ t("studyPackage.failed.title") }}</h1>
     <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ pkg.generationError || t("studyPackage.failed.defaultMessage") }}</p>
     <div class="flex items-center justify-center gap-3">
-      <RouterLink to="/new" class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover transition">{{ t("studyPackage.failed.tryAgain") }}</RouterLink>
-      <button class="inline-flex items-center gap-2 rounded-xl border-2 border-danger/30 text-danger px-5 py-2.5 text-sm font-semibold hover:bg-danger/10 transition" @click="remove">
-        <TrashIcon class="w-4 h-4" /> {{ t("common.delete") }}
+      <button
+        :disabled="retrying || deleting"
+        class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition"
+        @click="retry"
+      >
+        <ArrowPathIcon class="w-4 h-4" :class="retrying ? 'animate-spin' : ''" /> {{ t("studyPackage.failed.tryAgain") }}
+      </button>
+      <button
+        :disabled="retrying || deleting"
+        class="inline-flex items-center gap-2 rounded-xl border-2 border-danger/30 text-danger px-5 py-2.5 text-sm font-semibold hover:bg-danger/10 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        @click="remove"
+      >
+        <TrashIcon class="w-4 h-4" :class="deleting ? 'animate-spin' : ''" /> {{ t("common.delete") }}
       </button>
     </div>
   </div>
@@ -33,11 +43,26 @@
     </div>
     <h1 class="font-display font-bold text-xl text-slate-900 dark:text-white mb-2">{{ progressStepLabel }}</h1>
     <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ pkg.metadata?.video_title && pkg.metadata.video_title !== "Generating…" ? pkg.metadata.video_title : t("studyPackage.progress.buildingDefault") }}</p>
+
+    <!-- Stage stepper: queued -> extracting -> generating -> saving -->
+    <div class="flex items-center justify-center gap-1.5 mb-6">
+      <template v-for="(step, i) in progressSteps" :key="step">
+        <span
+          class="w-2 h-2 rounded-full transition-colors"
+          :class="stageIndex >= i ? 'bg-primary' : 'bg-slate-200 dark:bg-white/10'"
+        ></span>
+        <span v-if="i < progressSteps.length - 1" class="w-5 h-px" :class="stageIndex > i ? 'bg-primary' : 'bg-slate-200 dark:bg-white/10'"></span>
+      </template>
+    </div>
+
     <div class="max-w-xs mx-auto">
       <div class="h-2 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
         <div class="h-full rounded-full bg-gradient-to-r from-primary to-secondary transition-all duration-700" :style="{ width: (pkg.progress ?? 0) + '%' }"></div>
       </div>
       <p class="text-xs font-mono text-slate-400 mt-2">{{ pkg.progress ?? 0 }}%</p>
+      <p v-if="pkg.progressDetail" class="text-xs mt-2" :class="pkg.progressDetail.includes('failed') ? 'text-warning' : 'text-slate-400'">
+        {{ pkg.progressDetail }}
+      </p>
     </div>
   </div>
 
@@ -121,12 +146,12 @@
           <!-- SUMMARY -->
           <div v-show="tab === 'summary'" class="flex flex-col gap-5">
             <YouTubePlayer v-if="youtubeVideoId" ref="youtubePlayer" :video-id="youtubeVideoId" />
-            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-              <h3 class="font-display font-bold mb-2">{{ t("studyPackage.summary.fullSummaryTitle") }}</h3>
-              <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">{{ pkg.full_lecture_summary }}</p>
+            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+              <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.summary.fullSummaryTitle") }}</h3>
+              <div class="rich-content-block text-slate-600 dark:text-slate-300 text-base leading-loose" v-html="renderMarkdown(pkg.full_lecture_summary)"></div>
             </div>
             <div class="flex items-center justify-between">
-              <h3 class="font-display font-bold text-lg">{{ t("studyPackage.summary.chaptersTitle") }}</h3>
+              <h3 class="font-display font-bold text-xl">{{ t("studyPackage.summary.chaptersTitle") }}</h3>
               <RegenerateButton :package-id="pkg._id" section="summary" @regenerated="(d) => (pkg.summary = d.summary)" />
             </div>
             <div class="flex flex-col gap-6">
@@ -157,32 +182,42 @@
                       {{ formatTs(c.timestamp) }} ▶
                     </button>
                     <p v-else class="font-mono text-xs text-primary mb-0.5">{{ formatTs(c.timestamp) }}</p>
-                    <h4 class="font-display font-bold text-slate-900 dark:text-white mb-1.5">{{ c.topic_title }}</h4>
-                    <p class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed mb-2" v-html="renderLatexText(c.description)"></p>
+                    <h4 class="font-display font-bold text-lg text-slate-900 dark:text-white mb-2">{{ c.topic_title }}</h4>
+                    <div class="rich-content-block text-base text-slate-700 dark:text-slate-200 leading-loose mb-3" v-html="renderMarkdown(c.description)"></div>
 
-                    <div v-if="c.formulas?.length" class="flex flex-col gap-2 mb-3">
-                      <div v-for="(f, fi) in c.formulas" :key="fi" class="rounded-xl bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark p-3">
-                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ f.name }}</p>
-                        <div class="text-base text-slate-900 dark:text-white my-1.5" v-html="renderBlockFormula(f.formula)"></div>
-                        <p class="text-xs text-slate-500 dark:text-slate-400" v-html="renderLatexText(f.variables)"></p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><strong>{{ t("studyPackage.formulas.whenToUse") }}</strong> <span v-html="renderLatexText(f.when_to_use)"></span></p>
-                        <p v-if="f.example" class="text-xs text-slate-500 dark:text-slate-400 mt-1"><strong>{{ t("studyPackage.formulas.example") }}</strong> <span v-html="renderLatexText(f.example)"></span></p>
+                    <div v-if="c.images?.length" class="flex flex-col gap-4 mb-4">
+                      <figure v-for="(img, ii) in c.images" :key="ii" class="rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
+                        <img :src="img.data" :alt="img.caption" class="w-full max-h-96 object-contain bg-slate-50 dark:bg-white/5" loading="lazy" />
+                        <figcaption class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                          <p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">{{ img.caption }}</p>
+                          <p class="leading-relaxed" v-html="renderLatexText(img.explanation)"></p>
+                        </figcaption>
+                      </figure>
+                    </div>
+
+                    <div v-if="c.formulas?.length" class="flex flex-col gap-3 mb-4">
+                      <div v-for="(f, fi) in c.formulas" :key="fi" class="rounded-xl bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark p-4">
+                        <p class="text-sm font-semibold text-slate-500 dark:text-slate-400">{{ f.name }}</p>
+                        <div class="text-lg text-slate-900 dark:text-white my-2" v-html="renderBlockFormula(f.formula)"></div>
+                        <p class="text-sm text-slate-500 dark:text-slate-400" v-html="renderLatexText(f.variables)"></p>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1.5"><strong>{{ t("studyPackage.formulas.whenToUse") }}</strong> <span v-html="renderLatexText(f.when_to_use)"></span></p>
+                        <p v-if="f.example" class="text-sm text-slate-500 dark:text-slate-400 mt-1.5"><strong>{{ t("studyPackage.formulas.example") }}</strong> <span v-html="renderLatexText(f.example)"></span></p>
                       </div>
                     </div>
 
-                    <ul v-if="c.algorithms_or_processes?.length" class="list-decimal list-inside text-sm space-y-1 text-slate-600 dark:text-slate-300 mb-2">
-                      <li v-for="x in c.algorithms_or_processes" :key="x">{{ x }}</li>
+                    <ul v-if="c.algorithms_or_processes?.length" class="list-decimal list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 mb-3 leading-relaxed">
+                      <li v-for="x in c.algorithms_or_processes" :key="x" v-html="renderLatexText(x)"></li>
                     </ul>
-                    <div v-for="x in c.diagrams_or_tables_explained" :key="x" class="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                    <div v-for="x in c.diagrams_or_tables_explained" :key="x" class="text-sm text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
                       <span class="mr-1">📊</span><RichContent :text="x" />
                     </div>
-                    <p v-for="x in c.code_explained" :key="x" class="text-xs font-mono text-slate-500 dark:text-slate-400 mb-1">💻 {{ x }}</p>
-                    <div v-if="c.examples?.length" class="flex flex-col gap-1 mb-2">
-                      <p v-for="x in c.examples" :key="x" class="text-xs text-slate-600 dark:text-slate-300 bg-primary/5 rounded-lg px-3 py-2"><strong>{{ t("studyPackage.formulas.example") }}</strong> <span v-html="renderLatexText(x)"></span></p>
+                    <p v-for="x in c.code_explained" :key="x" class="text-sm font-mono text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">💻 <span v-html="renderLatexText(x)"></span></p>
+                    <div v-if="c.examples?.length" class="flex flex-col gap-2 mb-3">
+                      <p v-for="x in c.examples" :key="x" class="text-sm text-slate-600 dark:text-slate-300 bg-primary/5 rounded-lg px-4 py-3 leading-relaxed"><strong>{{ t("studyPackage.formulas.example") }}</strong> <span v-html="renderLatexText(x)"></span></p>
                     </div>
 
-                    <ul class="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 space-y-1">
-                      <li v-for="k in c.key_points" :key="k">{{ k }}</li>
+                    <ul class="list-disc list-inside text-base text-slate-600 dark:text-slate-300 space-y-1.5 leading-relaxed">
+                      <li v-for="k in c.key_points" :key="k" v-html="renderLatexText(k)"></li>
                     </ul>
                   </div>
                 </div>
@@ -195,57 +230,57 @@
             <div class="flex justify-end">
               <RegenerateButton :package-id="pkg._id" section="core_concepts" @regenerated="(d) => (pkg.core_concepts = d.core_concepts)" />
             </div>
-            <div class="grid sm:grid-cols-2 gap-4">
-              <div v-for="c in pkg.core_concepts" :key="c.term" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold text-primary mb-1.5">{{ c.term }}</h3>
-                <p class="text-sm text-slate-700 dark:text-slate-200 mb-2" v-html="renderLatexText(c.definition)"></p>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mb-2"><strong class="text-slate-600 dark:text-slate-300">{{ t("studyPackage.concepts.whyItMatters") }}</strong> <span v-html="renderLatexText(c.why_it_matters)"></span></p>
-                <p v-if="c.common_mistakes" class="text-sm text-danger/90 mb-2"><strong>{{ t("studyPackage.concepts.commonMistake") }}</strong> <span v-html="renderLatexText(c.common_mistakes)"></span></p>
-                <p class="font-mono text-xs bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-slate-500 dark:text-slate-400" v-html="renderLatexText(c.example)"></p>
-                <p v-if="c.related_concepts?.length" class="text-xs font-mono text-slate-400 mt-2">{{ t("studyPackage.concepts.related") }} {{ c.related_concepts.join(", ") }}</p>
+            <div class="grid sm:grid-cols-2 gap-5">
+              <div v-for="c in pkg.core_concepts" :key="c.term" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+                <h3 class="font-display font-bold text-lg text-primary mb-2">{{ c.term }}</h3>
+                <p class="text-base text-slate-700 dark:text-slate-200 mb-3 leading-relaxed" v-html="renderLatexText(c.definition)"></p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-3 leading-relaxed"><strong class="text-slate-600 dark:text-slate-300">{{ t("studyPackage.concepts.whyItMatters") }}</strong> <span v-html="renderLatexText(c.why_it_matters)"></span></p>
+                <p v-if="c.common_mistakes" class="text-sm text-danger/90 mb-3 leading-relaxed"><strong>{{ t("studyPackage.concepts.commonMistake") }}</strong> <span v-html="renderLatexText(c.common_mistakes)"></span></p>
+                <p class="font-mono text-sm bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark rounded-lg px-4 py-3 text-slate-500 dark:text-slate-400 leading-relaxed" v-html="renderLatexText(c.example)"></p>
+                <p v-if="c.related_concepts?.length" class="text-sm font-mono text-slate-400 mt-3">{{ t("studyPackage.concepts.related") }} {{ c.related_concepts.join(", ") }}</p>
                 <ConceptExplainer :package-id="pkg._id" :term="c.term" :definition="c.definition" />
               </div>
             </div>
           </div>
 
           <!-- NOTES -->
-          <div v-show="tab === 'notes'" class="flex flex-col gap-4">
+          <div v-show="tab === 'notes'" class="flex flex-col gap-5">
             <div class="flex justify-end">
               <RegenerateButton :package-id="pkg._id" section="study_notes" @regenerated="(d) => (pkg.study_notes = d.study_notes)" />
             </div>
-            <div class="grid sm:grid-cols-2 gap-4">
-              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold mb-2">{{ t("studyPackage.notes.mainIdeas") }}</h3>
-                <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.main_ideas" :key="x">{{ x }}</li></ul>
+            <div class="grid sm:grid-cols-2 gap-5">
+              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+                <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.notes.mainIdeas") }}</h3>
+                <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="x in notes.main_ideas" :key="x" v-html="renderLatexText(x)"></li></ul>
               </div>
-              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold mb-2">{{ t("studyPackage.notes.importantDetails") }}</h3>
-                <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.important_details" :key="x">{{ x }}</li></ul>
+              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+                <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.notes.importantDetails") }}</h3>
+                <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="x in notes.important_details" :key="x" v-html="renderLatexText(x)"></li></ul>
               </div>
-              <div v-if="notes.formulas_or_rules?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold mb-2">{{ t("studyPackage.notes.formulasRules") }}</h3>
-                <ul class="list-none space-y-2 text-sm text-slate-600 dark:text-slate-300">
+              <div v-if="notes.formulas_or_rules?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+                <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.notes.formulasRules") }}</h3>
+                <ul class="list-none space-y-2.5 text-base text-slate-600 dark:text-slate-300 leading-relaxed">
                   <li v-for="x in notes.formulas_or_rules" :key="x" v-html="renderLatexText(x)"></li>
                 </ul>
               </div>
-              <div v-if="notes.processes_or_steps?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold mb-2">{{ t("studyPackage.notes.processesSteps") }}</h3>
-                <ol class="list-decimal list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.processes_or_steps" :key="x">{{ x }}</li></ol>
+              <div v-if="notes.processes_or_steps?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+                <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.notes.processesSteps") }}</h3>
+                <ol class="list-decimal list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="x in notes.processes_or_steps" :key="x" v-html="renderLatexText(x)"></li></ol>
               </div>
-              <div v-if="notes.comparisons?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5 sm:col-span-2">
-                <h3 class="font-display font-bold mb-2">{{ t("studyPackage.notes.comparisons") }}</h3>
-                <p v-for="(c, i) in notes.comparisons" :key="i" class="text-sm text-slate-600 dark:text-slate-300 mb-1">
-                  <strong class="text-slate-900 dark:text-white">{{ c.concept_a }}</strong> {{ t("studyPackage.notes.vs") }} <strong class="text-slate-900 dark:text-white">{{ c.concept_b }}</strong>: {{ c.difference }}
+              <div v-if="notes.comparisons?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6 sm:col-span-2">
+                <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.notes.comparisons") }}</h3>
+                <p v-for="(c, i) in notes.comparisons" :key="i" class="text-base text-slate-600 dark:text-slate-300 mb-2 leading-relaxed">
+                  <strong class="text-slate-900 dark:text-white">{{ c.concept_a }}</strong> {{ t("studyPackage.notes.vs") }} <strong class="text-slate-900 dark:text-white">{{ c.concept_b }}</strong>: <span v-html="renderLatexText(c.difference)"></span>
                 </p>
               </div>
-              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-                <h3 class="font-display font-bold mb-2">{{ t("studyPackage.notes.commonMistakes") }}</h3>
-                <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="x in notes.common_misunderstandings" :key="x">{{ x }}</li></ul>
+              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+                <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.notes.commonMistakes") }}</h3>
+                <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="x in notes.common_misunderstandings" :key="x" v-html="renderLatexText(x)"></li></ul>
               </div>
             </div>
-            <div class="rounded-2xl border-2 border-warning/40 bg-warning/5 p-5">
-              <h3 class="font-display font-bold mb-2 flex items-center gap-2"><FireIcon class="w-5 h-5 text-warning" /> {{ t("studyPackage.notes.examFocus") }}</h3>
-              <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-700 dark:text-slate-200"><li v-for="x in notes.exam_focus" :key="x">{{ x }}</li></ul>
+            <div class="rounded-2xl border-2 border-warning/40 bg-warning/5 p-6">
+              <h3 class="font-display font-bold text-lg mb-3 flex items-center gap-2"><FireIcon class="w-5 h-5 text-warning" /> {{ t("studyPackage.notes.examFocus") }}</h3>
+              <ul class="list-disc list-inside text-base space-y-2 text-slate-700 dark:text-slate-200 leading-relaxed"><li v-for="x in notes.exam_focus" :key="x" v-html="renderLatexText(x)"></li></ul>
             </div>
           </div>
 
@@ -259,9 +294,9 @@
               <RegenerateButton :package-id="pkg._id" section="glossary" @regenerated="(d) => (pkg.glossary = d.glossary)" />
             </div>
             <dl class="rounded-2xl border border-slate-200 dark:border-border-dark divide-y divide-slate-100 dark:divide-border-dark">
-              <div v-for="g in filteredGlossary" :key="g.term" class="px-5 py-3.5">
-                <dt class="font-display font-bold text-slate-900 dark:text-white">{{ g.term }}</dt>
-                <dd class="text-sm text-slate-500 dark:text-slate-400 mt-0.5" v-html="renderLatexText(g.meaning)"></dd>
+              <div v-for="g in filteredGlossary" :key="g.term" class="px-6 py-4">
+                <dt class="font-display font-bold text-base text-slate-900 dark:text-white">{{ g.term }}</dt>
+                <dd class="text-base text-slate-500 dark:text-slate-400 mt-1 leading-relaxed" v-html="renderLatexText(g.meaning)"></dd>
               </div>
               <p v-if="filteredGlossary.length === 0" class="px-5 py-6 text-sm text-slate-400 text-center">{{ t("studyPackage.glossary.noMatches", { query: glossaryQuery }) }}</p>
             </dl>
@@ -288,22 +323,22 @@
             <div class="flex justify-end">
               <RegenerateButton :package-id="pkg._id" section="practice_tasks" @regenerated="(d) => (pkg.practice_tasks = d.practice_tasks)" />
             </div>
-            <div v-for="(task, i) in pkg.practice_tasks" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-              <span class="badge mb-2" :class="diffTint(task.difficulty)">{{ task.difficulty }}</span>
-              <p class="font-medium text-slate-900 dark:text-white mb-2" v-html="renderLatexText(task.task)"></p>
-              <details class="mb-1.5 group">
+            <div v-for="(task, i) in pkg.practice_tasks" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+              <span class="badge mb-3" :class="diffTint(task.difficulty)">{{ task.difficulty }}</span>
+              <p class="font-medium text-base text-slate-900 dark:text-white mb-3 leading-relaxed" v-html="renderLatexText(task.task)"></p>
+              <details class="mb-2 group">
                 <summary class="cursor-pointer text-sm font-semibold text-primary list-none flex items-center gap-1">
                   <ChevronRightIcon class="w-4 h-4 group-open:rotate-90 transition-transform" /> {{ t("studyPackage.practice.hint") }}
                 </summary>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1.5 pl-5" v-html="renderLatexText(task.hint)"></p>
+                <p class="text-base text-slate-500 dark:text-slate-400 mt-2 pl-5 leading-relaxed" v-html="renderLatexText(task.hint)"></p>
               </details>
               <details class="group">
                 <summary class="cursor-pointer text-sm font-semibold text-primary list-none flex items-center gap-1">
                   <ChevronRightIcon class="w-4 h-4 group-open:rotate-90 transition-transform" /> {{ t("studyPackage.practice.solution") }}
                 </summary>
-                <p class="text-sm text-slate-600 dark:text-slate-300 mt-1.5 pl-5"><RichContent :text="task.solution" /></p>
+                <div class="text-base text-slate-600 dark:text-slate-300 mt-2 pl-5 leading-relaxed"><RichContent :text="task.solution" /></div>
               </details>
-              <p class="font-mono text-xs text-slate-400 mt-3">{{ t("studyPackage.practice.uses") }} {{ (task.concepts_used || []).join(", ") }}</p>
+              <p class="font-mono text-sm text-slate-400 mt-4">{{ t("studyPackage.practice.uses") }} {{ (task.concepts_used || []).join(", ") }}</p>
             </div>
           </div>
 
@@ -320,38 +355,38 @@
             <div class="flex justify-end">
               <RegenerateButton :package-id="pkg._id" section="short_answer_questions" @regenerated="(d) => (pkg.short_answer_questions = d.short_answer_questions)" />
             </div>
-            <div v-for="(q, i) in pkg.short_answer_questions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-              <p class="font-medium text-slate-900 dark:text-white mb-2" v-html="renderLatexText(q.question)"></p>
-              <textarea v-model="shortAnswerDrafts[i]" rows="2" :placeholder="t('studyPackage.shortAnswer.placeholder')" class="w-full rounded-lg border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 mb-2"></textarea>
+            <div v-for="(q, i) in pkg.short_answer_questions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+              <p class="font-medium text-base text-slate-900 dark:text-white mb-3 leading-relaxed" v-html="renderLatexText(q.question)"></p>
+              <textarea v-model="shortAnswerDrafts[i]" rows="2" :placeholder="t('studyPackage.shortAnswer.placeholder')" class="w-full rounded-lg border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 mb-3"></textarea>
               <details class="group">
                 <summary class="cursor-pointer text-sm font-semibold text-primary list-none flex items-center gap-1">
                   <ChevronRightIcon class="w-4 h-4 group-open:rotate-90 transition-transform" /> {{ t("studyPackage.shortAnswer.reveal") }}
                 </summary>
-                <div class="mt-1.5 pl-5">
-                  <p class="text-sm text-slate-700 dark:text-slate-200" v-html="renderLatexText(q.expected_answer)"></p>
-                  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1"><strong>{{ t("studyPackage.shortAnswer.gradingHint") }}</strong> <span v-html="renderLatexText(q.grading_hint)"></span></p>
+                <div class="mt-2 pl-5">
+                  <div class="rich-content-block text-base text-slate-700 dark:text-slate-200 leading-relaxed" v-html="renderMarkdown(q.expected_answer)"></div>
+                  <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed"><strong>{{ t("studyPackage.shortAnswer.gradingHint") }}</strong> <span v-html="renderLatexText(q.grading_hint)"></span></p>
                 </div>
               </details>
             </div>
           </div>
 
           <!-- LEARNING PATH -->
-          <div v-show="tab === 'path'" class="grid sm:grid-cols-2 gap-4">
-            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5 sm:col-span-2">
-              <h3 class="font-display font-bold mb-3">{{ t("studyPackage.path.objectives") }}</h3>
-              <ul class="flex flex-col gap-2">
-                <li v-for="o in pkg.learning_objectives" :key="o" class="flex items-start gap-2.5 text-sm text-slate-600 dark:text-slate-300">
-                  <CheckCircleIcon class="w-5 h-5 text-success shrink-0 mt-0.5" /> {{ o }}
+          <div v-show="tab === 'path'" class="grid sm:grid-cols-2 gap-5">
+            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6 sm:col-span-2">
+              <h3 class="font-display font-bold text-lg mb-4">{{ t("studyPackage.path.objectives") }}</h3>
+              <ul class="flex flex-col gap-3">
+                <li v-for="o in pkg.learning_objectives" :key="o" class="flex items-start gap-2.5 text-base text-slate-600 dark:text-slate-300 leading-relaxed">
+                  <CheckCircleIcon class="w-5 h-5 text-success shrink-0 mt-0.5" /> <span v-html="renderLatexText(o)"></span>
                 </li>
               </ul>
             </div>
-            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-              <h3 class="font-display font-bold mb-2">{{ t("studyPackage.path.prerequisites") }}</h3>
-              <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="p in pkg.prerequisites" :key="p">{{ p }}</li></ul>
+            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+              <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.path.prerequisites") }}</h3>
+              <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="p in pkg.prerequisites" :key="p" v-html="renderLatexText(p)"></li></ul>
             </div>
-            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-              <h3 class="font-display font-bold mb-2">{{ t("studyPackage.path.nextSteps") }}</h3>
-              <ul class="list-disc list-inside text-sm space-y-1.5 text-slate-600 dark:text-slate-300"><li v-for="n in pkg.recommended_next_steps" :key="n">{{ n }}</li></ul>
+            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+              <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.path.nextSteps") }}</h3>
+              <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="n in pkg.recommended_next_steps" :key="n" v-html="renderLatexText(n)"></li></ul>
             </div>
           </div>
 
@@ -382,13 +417,14 @@ import {
   FireIcon, CheckCircleIcon, BookOpenIcon, AcademicCapIcon, DocumentTextIcon,
   QueueListIcon, QuestionMarkCircleIcon, Squares2X2Icon, ClipboardDocumentCheckIcon,
   CheckIcon, PencilSquareIcon, MapIcon, ChatBubbleLeftRightIcon,
-  VideoCameraIcon, DocumentIcon, SparklesIcon, ExclamationTriangleIcon,
+  VideoCameraIcon, DocumentIcon, SparklesIcon, ExclamationTriangleIcon, ArrowPathIcon,
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
 import { useAuthStore } from "../stores/auth.js";
 import { downloadMarkdown, downloadJson, openPrintView } from "../composables/useExport.js";
 import { renderLatexText, renderBlockFormula } from "../composables/useLatex.js";
+import { renderMarkdown } from "../composables/useMarkdown.js";
 import { useI18n } from "../composables/useI18n.js";
 import { useClickOutside } from "../composables/useClickOutside.js";
 import QuizPlayer from "../components/QuizPlayer.vue";
@@ -412,6 +448,8 @@ const loading = ref(true);
 const error = ref("");
 const tab = ref("summary");
 const confirmDelete = ref(false);
+const retrying = ref(false);
+const deleting = ref(false);
 const glossaryQuery = ref("");
 const shortAnswerDrafts = reactive({});
 const exportOpen = ref(false);
@@ -487,10 +525,21 @@ const PROGRESS_STEP_KEYS = {
   saving: "studyPackage.progress.saving",
 };
 const progressStepLabel = computed(() => t(PROGRESS_STEP_KEYS[pkg.value?.status] || "studyPackage.progress.working"));
+const progressSteps = Object.keys(PROGRESS_STEP_KEYS);
+const stageIndex = computed(() => Math.max(0, progressSteps.indexOf(pkg.value?.status)));
 
 let pollTimer = null;
 let pollFailureCount = 0;
-const MAX_POLL_FAILURES = 5;
+// Once a few consecutive polls fail (flaky wifi, a brief server blip), back
+// off to a slower interval instead of hammering the API — but keep polling
+// indefinitely rather than ever giving up. The background generation job is
+// still running server-side regardless of whether *this* browser tab can
+// currently reach the API, so permanently stopping here (the previous
+// behavior, after 5 failures) could strand the user on a dead-end error
+// screen for a package that finishes generating just fine in the
+// background — exactly the "stuck forever" symptom, just for a different
+// reason than any single request actually being stuck.
+const POLL_BACKOFF_THRESHOLD = 5;
 function stopPolling() {
   clearTimeout(pollTimer);
   pollTimer = null;
@@ -498,20 +547,19 @@ function stopPolling() {
 async function pollStatus() {
   try {
     const fresh = await api.getPackage(props.id);
+    if (pollFailureCount >= POLL_BACKOFF_THRESHOLD) toast.success(t("studyPackage.progress.reconnected"));
     pollFailureCount = 0;
     pkg.value = fresh;
     if (fresh.status === "queued" || fresh.status === "extracting" || fresh.status === "generating" || fresh.status === "saving") {
       pollTimer = setTimeout(pollStatus, 1800);
     }
   } catch (e) {
-    // A transient network blip shouldn't permanently strand the user on a
-    // hard error screen while the background job may still be running fine.
     pollFailureCount++;
-    if (pollFailureCount >= MAX_POLL_FAILURES) {
-      error.value = e.message;
-    } else {
-      pollTimer = setTimeout(pollStatus, 1800);
+    if (pollFailureCount === POLL_BACKOFF_THRESHOLD) {
+      toast.error(t("studyPackage.progress.connectionTrouble"));
     }
+    const delay = pollFailureCount >= POLL_BACKOFF_THRESHOLD ? 10000 : 1800;
+    pollTimer = setTimeout(pollStatus, delay);
   }
 }
 
@@ -549,15 +597,51 @@ function doExport(format) {
   else openPrintView(pkg.value, { watermark });
 }
 
-async function remove() {
+async function retry() {
+  if (retrying.value || deleting.value) return;
+  retrying.value = true;
+  error.value = "";
   try {
-    await api.deletePackage(props.id);
-    toast.success(t("toasts.packageDeleted"));
-    router.push("/dashboard");
+    await api.retryPackage(props.id);
+    // Reflect the new status immediately rather than waiting up to 1.8s for
+    // the next poll tick — the failed-state screen should switch straight
+    // to the in-progress screen the moment the retry is accepted.
+    stopPolling();
+    pollFailureCount = 0;
+    pkg.value = await api.getPackage(props.id);
+    if (pkg.value.status && pkg.value.status !== "completed" && pkg.value.status !== "failed") {
+      pollTimer = setTimeout(pollStatus, 1800);
+    }
   } catch (e) {
     toast.error(e.message);
   } finally {
+    retrying.value = false;
+  }
+}
+
+async function remove() {
+  if (deleting.value || retrying.value) return;
+  deleting.value = true;
+  try {
+    await api.deletePackage(props.id);
+    stopPolling();
+    toast.success(t("toasts.packageDeleted"));
+    // Deliberately NOT resetting deleting/confirmDelete after a successful
+    // delete: this component is about to be torn down by the navigation
+    // below, so there's nothing left to un-disable it for. Mutating those
+    // refs here forces one more reactive re-render of the *leaving*
+    // component while AppShell's <Transition mode="out-in"> is mid-flight
+    // swapping it for DashboardPage — which was reproducibly corrupting the
+    // transition's leave/enter bookkeeping and leaving <RouterView> stuck
+    // rendering neither component (a blank <main>) until a hard reload.
+    // Awaiting the navigation, rather than firing it and continuing past it
+    // in the same tick, keeps this function's own state changes cleanly
+    // sequenced before or after the route change, never straddling it.
+    await router.push("/dashboard");
+  } catch (e) {
+    toast.error(e.message);
     confirmDelete.value = false;
+    deleting.value = false;
   }
 }
 </script>

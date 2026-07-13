@@ -13,6 +13,21 @@ const routes = [
   { path: "/new", name: "upload", component: () => import("../pages/UploadPage.vue"), meta: { requiresAuth: true } },
   { path: "/package/:id", name: "package", component: () => import("../pages/StudyPackagePage.vue"), props: true, meta: { requiresAuth: true } },
   { path: "/settings", name: "settings", component: () => import("../pages/SettingsPage.vue"), meta: { requiresAuth: true } },
+  { path: "/settings/support", name: "settings-support", component: () => import("../pages/SupportTicketsPage.vue"), meta: { requiresAuth: true } },
+  { path: "/contact", name: "contact", component: () => import("../pages/ContactPage.vue"), meta: { layout: "landing" } },
+  { path: "/admin", name: "admin-overview", component: () => import("../pages/admin/AdminOverviewPage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/users", name: "admin-users", component: () => import("../pages/admin/AdminUsersPage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/users/:id", name: "admin-user-detail", component: () => import("../pages/admin/AdminUserDetailPage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/revenue", name: "admin-revenue", component: () => import("../pages/admin/AdminRevenuePage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/ai-usage", name: "admin-ai-usage", component: () => import("../pages/admin/AdminAiUsagePage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/generation", name: "admin-generation", component: () => import("../pages/admin/AdminGenerationStatsPage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/queue", name: "admin-queue", component: () => import("../pages/admin/AdminQueuePage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/errors", name: "admin-errors", component: () => import("../pages/admin/AdminErrorLogsPage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/health", name: "admin-health", component: () => import("../pages/admin/AdminSystemHealthPage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/support", name: "admin-support", component: () => import("../pages/admin/AdminSupportPage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/contact", name: "admin-contact", component: () => import("../pages/admin/AdminContactPage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/coupons", name: "admin-coupons", component: () => import("../pages/admin/AdminCouponsPage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
+  { path: "/admin/reports", name: "admin-reports", component: () => import("../pages/admin/AdminReportsPage.vue"), meta: { requiresAuth: true, requiresAdmin: true, layout: "admin" } },
   { path: "/:pathMatch(.*)*", name: "not-found", component: () => import("../pages/NotFoundPage.vue"), meta: { layout: "landing" } },
 ];
 
@@ -30,6 +45,9 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { path: "/login", query: { redirect: to.fullPath } };
+  }
+  if (to.meta.requiresAdmin && auth.user?.role !== "admin") {
+    return { path: "/dashboard" };
   }
   if (to.meta.guestOnly && auth.isAuthenticated) {
     return { path: "/dashboard" };

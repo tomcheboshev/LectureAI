@@ -23,7 +23,7 @@
           <button class="w-full flex items-center gap-2 text-left px-3.5 py-2 text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition disabled:opacity-40" :disabled="busy || (pkg.status && pkg.status !== 'completed')" @click="exportAs('json')">
             <ArrowDownTrayIcon class="w-4 h-4" /> {{ t("packageCard.exportJson") }}
           </button>
-          <button class="w-full flex items-center gap-2 text-left px-3.5 py-2 text-sm text-danger hover:bg-danger/5 transition" @click="menuOpen = false; confirmDelete = true">
+          <button class="w-full flex items-center gap-2 text-left px-3.5 py-2 text-sm text-danger hover:bg-danger/5 transition disabled:opacity-40" :disabled="busy" @click="menuOpen = false; confirmDelete = true">
             <TrashIcon class="w-4 h-4" /> {{ t("common.delete") }}
           </button>
         </div>
@@ -179,13 +179,17 @@ async function exportAs(format) {
 }
 
 async function doDelete() {
+  if (busy.value) return;
   confirmDelete.value = false;
+  busy.value = true;
   try {
     await api.deletePackage(props.pkg._id);
     toast.success(t("toasts.packageDeleted"));
     emit("refresh");
   } catch (e) {
     reportApiError(e);
+  } finally {
+    busy.value = false;
   }
 }
 </script>

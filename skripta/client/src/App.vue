@@ -12,8 +12,13 @@
 import { computed } from "vue";
 import { useRoute, RouterView } from "vue-router";
 import AppShell from "./layouts/AppShell.vue";
+import AdminShell from "./layouts/AdminShell.vue";
 
 const route = useRoute();
 const isLanding = computed(() => route.meta.layout === "landing");
-const layout = computed(() => (isLanding.value ? "div" : AppShell));
+const layout = computed(() => {
+  if (isLanding.value) return "div";
+  if (route.meta.layout === "admin") return AdminShell;
+  return AppShell;
+});
 </script>

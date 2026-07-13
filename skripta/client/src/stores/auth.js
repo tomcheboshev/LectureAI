@@ -74,12 +74,6 @@ export const useAuthStore = defineStore("auth", {
       this.user = user;
     },
 
-    async upgrade(plan) {
-      const { user } = await api.upgradePlan(plan);
-      this.user = user;
-      await this.fetchMe();
-    },
-
     async deleteAccount(password) {
       await api.deleteAccount({ password });
       this.clearSession();

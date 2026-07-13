@@ -1,12 +1,12 @@
 <template>
   <div class="flex flex-col gap-3">
-    <div v-for="(q, i) in questions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-5">
-      <p class="font-medium text-slate-900 dark:text-white mb-3" v-html="renderLatexText(q.statement)"></p>
+    <div v-for="(q, i) in questions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+      <p class="font-medium text-base text-slate-900 dark:text-white mb-4 leading-relaxed" v-html="renderLatexText(q.statement)"></p>
       <div class="flex gap-2.5">
-        <button class="flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition" :class="btnClass(i, true)" :disabled="answers[i] !== null" @click="answer(i, true)">{{ t("trueFalseQuiz.true") }}</button>
-        <button class="flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition" :class="btnClass(i, false)" :disabled="answers[i] !== null" @click="answer(i, false)">{{ t("trueFalseQuiz.false") }}</button>
+        <button class="flex-1 rounded-lg border-2 py-2.5 text-sm font-semibold transition" :class="btnClass(i, true)" :disabled="answers[i] !== null" @click="answer(i, true)">{{ t("trueFalseQuiz.true") }}</button>
+        <button class="flex-1 rounded-lg border-2 py-2.5 text-sm font-semibold transition" :class="btnClass(i, false)" :disabled="answers[i] !== null" @click="answer(i, false)">{{ t("trueFalseQuiz.false") }}</button>
       </div>
-      <p v-if="answers[i] !== null" class="text-sm mt-3" :class="answers[i] === q.answer ? 'text-success' : 'text-danger'">
+      <p v-if="answers[i] !== null" class="text-base mt-4 leading-relaxed" :class="answers[i] === q.answer ? 'text-success' : 'text-danger'">
         <strong>{{ answers[i] === q.answer ? t("trueFalseQuiz.correct") : t("trueFalseQuiz.wrong") }} {{ t("trueFalseQuiz.answerIs", { value: q.answer ? t("trueFalseQuiz.trueVal") : t("trueFalseQuiz.falseVal") }) }}</strong>
         <span class="text-slate-600 dark:text-slate-300" v-html="' ' + renderLatexText(q.explanation)"></span>
       </p>

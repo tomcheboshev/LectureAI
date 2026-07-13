@@ -17,7 +17,41 @@ const UserSchema = new Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
     passwordHash: { type: String, required: true, select: false },
 
+    // `plan` is the field every other route already reads (planLimits(),
+    // assertPackageLimit(), etc.) — kept as the single source of truth for
+    // feature gating so nothing downstream needs to change. Webhooks below
+    // are what keep it in sync with reality now, instead of the old
+    // direct-flip POST /api/auth/upgrade stub.
     plan: { type: String, enum: ["free", "pro", "enterprise"], default: "free", index: true },
+
+    // Granted only via server/scripts/grant-admin.mjs, run manually from the
+    // terminal — there is no self-serve promotion endpoint anywhere in the app.
+    role: { type: String, enum: ["user", "admin"], default: "user", index: true },
+    banned: { type: Boolean, default: false, index: true },
+    bannedAt: { type: Date, default: null },
+    banReason: { type: String, default: null },
+
+    // --- Stripe subscription state (synced by webhook handlers, never
+    // written directly by a client-facing route) ---------------------------
+    stripeCustomerId: { type: String, index: true },
+    stripeSubscriptionId: { type: String, index: true },
+    // Mirrors Stripe's own subscription.status values verbatim
+    // (incomplete/incomplete_expired/trialing/active/past_due/canceled/
+    // unpaid/paused) rather than inventing a parallel enum — anyone
+    // debugging can cross-reference the Stripe Dashboard directly.
+    subscriptionStatus: { type: String, default: null },
+    stripePriceId: { type: String, default: null },
+    billingInterval: { type: String, enum: ["month", "year", null], default: null },
+    isStudent: { type: Boolean, default: false },
+    currentPeriodEnd: { type: Date, default: null },
+    cancelAtPeriodEnd: { type: Boolean, default: false },
+    trialEndsAt: { type: Date, default: null },
+    // Set when a payment fails (invoice.payment_failed) to `now + grace
+    // period`; cleared on the next successful payment. While this is in the
+    // future, the user keeps pro-tier access even though Stripe's own
+    // subscription.status has already flipped to "past_due" — see
+    // services/billing/subscription.js's getEffectivePlan().
+    gracePeriodEndsAt: { type: Date, default: null },
 
     emailVerified: { type: Boolean, default: false },
     emailVerificationTokenHash: { type: String, select: false, index: true },
