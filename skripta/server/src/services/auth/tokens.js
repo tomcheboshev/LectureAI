@@ -2,9 +2,15 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
 const ACCESS_TOKEN_TTL = "15m";
-export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — "remember me" checked
+// Not remembered: the server-side session still caps out at 1 day even if
+// the browser itself is left open longer (the cookie is also issued
+// without `maxAge` in this case, making it a browser-session cookie — the
+// two mechanisms are independent layers, not redundant).
+export const REFRESH_TOKEN_TTL_MS_SHORT = 24 * 60 * 60 * 1000; // 1 day — "remember me" unchecked
 export const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+export const EMAIL_CHANGE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 function accessSecret() {
   const secret = process.env.JWT_ACCESS_SECRET;

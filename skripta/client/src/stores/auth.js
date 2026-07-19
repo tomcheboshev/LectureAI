@@ -20,15 +20,24 @@ export const useAuthStore = defineStore("auth", {
       if (this.ready) return;
       setUnauthorizedHandler(() => this.clearSession());
       try {
-        const { accessToken, user } = await api.refresh();
-        setAccessToken(accessToken);
-        this.user = user;
-        await this.fetchMe();
+        await this.restoreSession();
       } catch {
         this.clearSession();
       } finally {
         this.ready = true;
       }
+    },
+
+    // The same refresh->fetchMe steps as init(), but unguarded — used by
+    // OAuthCallbackPage.vue, where a real session was just established
+    // server-side (via the OAuth redirect) *after* app boot already ran
+    // init() once, so the `this.ready` gate above would otherwise skip
+    // picking it up.
+    async restoreSession() {
+      const { accessToken, user } = await api.refresh();
+      setAccessToken(accessToken);
+      this.user = user;
+      await this.fetchMe();
     },
 
     async register(payload) {
@@ -74,9 +83,23 @@ export const useAuthStore = defineStore("auth", {
       this.user = user;
     },
 
+    async uploadAvatar(file) {
+      const { user } = await api.uploadAvatar(file);
+      this.user = user;
+    },
+
+    // Schedules a 30-day soft-delete — the session deliberately stays alive
+    // (matches the server's behavior) so the caller can keep using the app
+    // and see the "scheduled for deletion" banner/reactivate option.
     async deleteAccount(password) {
-      await api.deleteAccount({ password });
-      this.clearSession();
+      const res = await api.deleteAccount({ password });
+      await this.fetchMe();
+      return res;
+    },
+
+    async reactivate() {
+      await api.reactivate();
+      await this.fetchMe();
     },
   },
 });

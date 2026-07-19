@@ -60,6 +60,13 @@
         </div>
       </header>
 
+      <div v-if="auth.user?.deletionScheduledAt" class="flex flex-wrap items-center justify-center gap-2 px-4 py-2.5 text-sm bg-danger/10 border-b border-danger/20 text-danger text-center">
+        <span>{{ t("appShell.deletionBanner.message", { date: formatDate(auth.user.deletionScheduledAt) }) }}</span>
+        <button class="font-semibold underline hover:no-underline disabled:opacity-60" :disabled="reactivating" @click="doReactivate">
+          {{ reactivating ? t("appShell.deletionBanner.reactivating") : t("appShell.deletionBanner.reactivate") }}
+        </button>
+      </div>
+
       <main class="flex-1 min-w-0">
         <RouterView v-slot="{ Component }">
           <Transition name="page">
@@ -111,5 +118,22 @@ async function doLogout() {
   await auth.logout();
   toast.success(t("toasts.loggedOut"));
   router.push("/login");
+}
+
+function formatDate(d) {
+  return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+}
+
+const reactivating = ref(false);
+async function doReactivate() {
+  reactivating.value = true;
+  try {
+    await auth.reactivate();
+    toast.success(t("toasts.accountReactivated"));
+  } catch (e) {
+    toast.error(e.message);
+  } finally {
+    reactivating.value = false;
+  }
 }
 </script>

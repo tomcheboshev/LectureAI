@@ -30,12 +30,28 @@ export const useBillingStore = defineStore("billing", {
       const { url } = await api.createCheckoutSession(planKey);
       window.location.href = url;
     },
-    // Redirects to Stripe's hosted Billing Portal — covers upgrade,
-    // downgrade, cancel, resume, payment method updates, and invoice
-    // history/download, all without any custom UI of our own.
+    // Redirects to Stripe's hosted Billing Portal — covers payment method
+    // updates and invoice history/download; upgrade/downgrade/cancel/resume
+    // now also have in-app equivalents below.
     async openBillingPortal() {
       const { url } = await api.createBillingPortalSession();
       window.location.href = url;
+    },
+    // The server doesn't write to Mongo for cancel/resume (that's the
+    // webhook pipeline's job) so its response is only a partial snapshot
+    // {status, cancelAtPeriodEnd, currentPeriodEnd} — merged into the
+    // existing subscription object rather than replacing it, so fields this
+    // response doesn't touch (plan, billingInterval, trialEndsAt, ...)
+    // aren't wiped out before the webhook has a chance to fully resync.
+    async cancel(mode, reason) {
+      const result = await api.cancelSubscription(mode, reason);
+      this.subscription = { ...this.subscription, ...result };
+      return result;
+    },
+    async resume() {
+      const result = await api.resumeSubscription();
+      this.subscription = { ...this.subscription, ...result };
+      return result;
     },
   },
 });

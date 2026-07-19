@@ -25,6 +25,13 @@ const InvoiceSchema = new Schema(
     periodStart: Date,
     periodEnd: Date,
     createdAt: { type: Date, required: true },
+    // Set by the charge.refunded / charge.dispute.created webhook handlers.
+    // A charge (not the invoice itself) is what Stripe actually refunds or
+    // disputes; these are flagged back onto the invoice they billed since
+    // that's the unit this app's UI already lists.
+    refunded: { type: Boolean, default: false },
+    amountRefunded: Number, // smallest currency unit, only set once refunded
+    disputed: { type: Boolean, default: false },
   },
   { timestamps: { createdAt: false, updatedAt: true } }
 );

@@ -9,10 +9,12 @@ import {
   generateStudyPackage,
   generateStudyPackageChunked,
   extractImageText,
-  regenerateSection,
+  regenerateSectionCore,
   explainConcept,
-} from "../services/gemini.js";
-import { REGENERATABLE_SECTIONS, EXPLAIN_ACTIONS } from "../prompt.js";
+} from "../ai/index.js";
+import { REGENERATABLE_SECTIONS, EXPLAIN_ACTIONS } from "../prompt/index.js";
+import { cleanExtractedText } from "../ai/pipeline/textCleaning.js";
+import { filterRelevantImages } from "../ai/pipeline/imageFilter.js";
 import {
   extractYoutubeVideoId,
   fetchYoutubeMetadata,
@@ -85,30 +87,33 @@ function fileExt(originalname) {
 }
 
 // Extracts text and embedded images from one uploaded file based on its
-// extension/mimetype.
+// extension/mimetype. Every text result passes through cleanExtractedText
+// (the pipeline's "Clean Text" stage) and every image list through
+// filterRelevantImages ("Extract Images" stage's local relevance filter) —
+// both run once, here, so nothing downstream needs to repeat them.
 async function extractFileText(file, ctx) {
   const ext = fileExt(file.originalname);
 
   if (ext === "pdf" || file.mimetype === "application/pdf") {
-    const [text, images] = await Promise.all([extractPdfText(file.buffer), extractPdfImages(file.buffer)]);
-    return { text, file_type: "pdf", images };
+    const [text, rawImages] = await Promise.all([extractPdfText(file.buffer), extractPdfImages(file.buffer)]);
+    return { text: cleanExtractedText(text), file_type: "pdf", images: await filterRelevantImages(rawImages) };
   }
   if (ext === "docx" || file.mimetype.includes("wordprocessingml.document")) {
-    const [text, images] = await Promise.all([extractDocxText(file.buffer), extractDocxImages(file.buffer)]);
-    return { text, file_type: "docx", images };
+    const [text, rawImages] = await Promise.all([extractDocxText(file.buffer), extractDocxImages(file.buffer)]);
+    return { text: cleanExtractedText(text), file_type: "docx", images: await filterRelevantImages(rawImages) };
   }
   if (ext === "pptx" || file.mimetype.includes("presentationml.presentation")) {
-    const [text, images] = await Promise.all([extractPptxText(file.buffer), extractPptxImages(file.buffer)]);
-    return { text, file_type: "pptx", images };
+    const [text, rawImages] = await Promise.all([extractPptxText(file.buffer), extractPptxImages(file.buffer)]);
+    return { text: cleanExtractedText(text), file_type: "pptx", images: await filterRelevantImages(rawImages) };
   }
   if (ext === "srt" || ext === "vtt") {
-    return { text: extractSubtitleText(file.buffer), file_type: ext, images: [] };
+    return { text: cleanExtractedText(extractSubtitleText(file.buffer)), file_type: ext, images: [] };
   }
   if (ext === "txt" || file.mimetype === "text/plain") {
-    return { text: file.buffer.toString("utf-8"), file_type: "txt", images: [] };
+    return { text: cleanExtractedText(file.buffer.toString("utf-8")), file_type: "txt", images: [] };
   }
   if (ext === "md" || file.mimetype === "text/markdown") {
-    return { text: file.buffer.toString("utf-8"), file_type: "md", images: [] };
+    return { text: cleanExtractedText(file.buffer.toString("utf-8")), file_type: "md", images: [] };
   }
   if (IMAGE_MIMETYPES[ext]) {
     return { text: await extractImageText(file.buffer, IMAGE_MIMETYPES[ext], ctx), file_type: "image", images: [] };
@@ -120,14 +125,14 @@ async function extractFileText(file, ctx) {
   throw e;
 }
 
-// Caps the total number of images sent to Gemini as inline multimodal data
-// across an entire (possibly multi-file) upload — bounds request payload
-// size and per-generation image-token cost even if several image-heavy
-// decks are uploaded together.
+// Caps the total number of images sent to the AI provider as inline
+// multimodal data across an entire (possibly multi-file) upload — bounds
+// request payload size and per-generation image-token cost even if several
+// image-heavy decks are uploaded together.
 const MAX_TOTAL_IMAGES = 30;
 
 // Assigns global "IMG<n>" ids across every source's extracted images (in
-// source order), producing the manifest shape gemini.js/prompt.js expect:
+// source order), producing the manifest shape ai/ and prompt/ expect:
 // {id, mimeType, base64, sourceIndex, label} for the AI call, kept
 // alongside the original buffer so a referenced image can be persisted
 // as a data URI after generation without re-deriving it.
@@ -172,11 +177,11 @@ function userFacingMessage(err, fallback) {
 
 // One consistent, greppable prefix for every stage transition in the
 // generation pipeline (Upload -> Extract -> Clean -> Build prompt -> Call
-// Gemini -> Receive response -> Validate JSON -> Repair JSON -> Save ->
+// AI provider -> Receive response -> Validate JSON -> Repair JSON -> Save ->
 // Update status -> Completed/Failed) — the actual AI-call stages
-// (building the prompt, calling Gemini, receiving/validating/repairing its
-// response) are logged inside gemini.js itself, since that's where they
-// actually happen; this file logs the stages around them.
+// (building the prompt, calling the provider, receiving/validating/
+// repairing its response) are logged inside ai/ itself, since that's where
+// they actually happen; this file logs the stages around them.
 function logStage(id, message) {
   console.log(`[pipeline:${id}] ${message}`);
 }
@@ -210,14 +215,15 @@ async function markFailed(id, err, fallback) {
 
 async function runTranscriptGeneration(id, ownerId, { video_title, subject, difficulty, transcript }) {
   try {
-    logStage(id, `Cleaning: transcript is ${transcript.length} chars, ready to generate`);
+    const cleanedTranscript = cleanExtractedText(transcript);
+    logStage(id, `Cleaning: transcript is ${cleanedTranscript.length} chars, ready to generate`);
     await StudyPackage.updateOne({ _id: id }, { status: "generating", progress: 35 });
     logStage(id, "Updating status: generating");
-    const pkg = await generateStudyPackage({ video_title, subject, difficulty, transcript }, { ownerId, packageId: id });
+    const pkg = await generateStudyPackage({ video_title, subject, difficulty, transcript: cleanedTranscript }, { ownerId, packageId: id });
     logStage(id, "Saving to MongoDB...");
     await StudyPackage.updateOne(
       { _id: id },
-      { ...pkg, raw_transcript: transcript, status: "completed", progress: 100, $unset: { generationError: "" } }
+      { ...pkg, raw_transcript: cleanedTranscript, status: "completed", progress: 100, $unset: { generationError: "" } }
     );
     recordActivity(ownerId, "packagesGenerated");
     logStage(id, "Completed.");
@@ -241,9 +247,10 @@ async function runYoutubeGeneration(id, ownerId, { url, subject, difficulty, vid
       "fetching YouTube video data"
     );
 
-    const transcriptError = validateTranscript(transcriptData.text);
+    const cleanedText = cleanExtractedText(transcriptData.text);
+    const transcriptError = validateTranscript(cleanedText);
     if (transcriptError) throw Object.assign(new Error(transcriptError), { userFacing: true });
-    logStage(id, `Cleaning: transcript is ${transcriptData.text.length} chars, ready to generate`);
+    logStage(id, `Cleaning: transcript is ${cleanedText.length} chars, ready to generate`);
 
     const resolvedTitle = video_title || metadata.title || "Untitled Lecture";
     await StudyPackage.updateOne(
@@ -260,13 +267,13 @@ async function runYoutubeGeneration(id, ownerId, { url, subject, difficulty, vid
     logStage(id, "Updating status: generating");
 
     const pkg = await generateStudyPackage(
-      { video_title: resolvedTitle, subject, difficulty, transcript: transcriptData.text },
+      { video_title: resolvedTitle, subject, difficulty, transcript: cleanedText },
       { ownerId, packageId: id }
     );
     logStage(id, "Saving to MongoDB...");
     await StudyPackage.updateOne(
       { _id: id },
-      { ...pkg, raw_transcript: transcriptData.text, status: "completed", progress: 100, $unset: { generationError: "" } }
+      { ...pkg, raw_transcript: cleanedText, status: "completed", progress: 100, $unset: { generationError: "" } }
     );
     recordActivity(ownerId, "packagesGenerated");
     logStage(id, "Completed.");
@@ -337,10 +344,25 @@ async function generateFromExtractedSources(id, ownerId, { extracted, video_titl
   // the single-call path is at real risk. Small/typical inputs keep the
   // single call, which is simpler and slightly higher quality since the
   // model sees everything at once.
+  //
+  // This threshold MUST also account for embedded image payload size, not
+  // just extracted text length: a single PDF can carry up to
+  // MAX_TOTAL_IMAGES (30) embedded diagrams/figures sent as inline base64
+  // multimodal data, which is added to the actual request on top of the
+  // text below. A source with well under 40,000 chars of text but several
+  // hundred KB of embedded images was previously staying on the single-call
+  // path — its real request size (visible in ai/generation/callAi.js's
+  // "content chars" log) could be many times what the char threshold implied, which is
+  // exactly the kind of oversized single request that blows through a
+  // per-request/per-minute token budget on the very first call.
+  const imageCharsEquivalent = imageManifest.reduce((sum, img) => sum + img.base64.length, 0);
   const CHUNKED_THRESHOLD_CHARS = 40000;
-  const useChunked = extracted.length > 1 || combinedText.length > CHUNKED_THRESHOLD_CHARS;
+  const useChunked = extracted.length > 1 || combinedText.length + imageCharsEquivalent > CHUNKED_THRESHOLD_CHARS;
 
-  logStage(id, `Building prompt: ${useChunked ? "chunked" : "single-call"} path for ${extracted.length} source(s), ${combinedText.length} chars total`);
+  logStage(
+    id,
+    `Building prompt: ${useChunked ? "chunked" : "single-call"} path for ${extracted.length} source(s), ${combinedText.length} text chars + ${imageManifest.length} image(s) (~${imageCharsEquivalent} base64 chars) total`
+  );
 
   let pkg;
   if (!useChunked) {
@@ -390,9 +412,9 @@ async function runFilesGeneration(id, ownerId, { files, video_title, subject, di
     logStage(id, "Updating status: extracting");
 
     // Extracted one at a time rather than in parallel — image files call
-    // Gemini for OCR/description, and firing several of those concurrently
-    // is a fast way to blow through the API key's per-minute rate limit on
-    // its own, before generation even starts.
+    // the AI provider for OCR/description, and firing several of those
+    // concurrently is a fast way to blow through the API key's per-minute
+    // rate limit on its own, before generation even starts.
     //
     // Each file gets its own timeout wrapper as a last line of defense: this
     // job holds one of the background queue's only 2 concurrency slots, so
@@ -740,8 +762,20 @@ router.post("/:id/regenerate", async (req, res) => {
     if (doc.status !== "completed") {
       return res.status(409).json({ error: "This study package is still generating." });
     }
+    if (!doc.raw_transcript) {
+      return res.status(400).json({ error: "Original transcript is unavailable for regeneration." });
+    }
 
-    const { key, value } = await regenerateSection(doc, section);
+    const { key, value } = await regenerateSectionCore(
+      {
+        section,
+        isMultiSource: (doc.sources?.length || 0) > 1,
+        video_title: doc.metadata?.video_title,
+        subject: doc.metadata?.subject,
+        transcript: doc.raw_transcript,
+      },
+      { ownerId: doc.owner, packageId: doc._id }
+    );
     doc.set(key, value);
     await doc.save();
 

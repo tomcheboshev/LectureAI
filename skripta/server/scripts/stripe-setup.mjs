@@ -37,6 +37,13 @@ const PRICES = [
 ];
 const CURRENCY = "usd";
 
+// The one shared discount every personal referral Promotion Code redeems
+// against (services/billing/referrals.js mints one Promotion Code per user
+// pointing at this same Coupon) — the actual discount terms live in this
+// one place rather than being duplicated per user.
+const REFERRAL_COUPON_ID_ENV_VAR = "STRIPE_REFERRAL_COUPON_ID";
+const REFERRAL_DISCOUNT_PERCENT = 10;
+
 async function findOrCreateProduct() {
   // Stripe's Search API (products.search) has a well-documented few-second
   // indexing lag after a write — unsuitable for a script meant to be safely
@@ -85,6 +92,17 @@ async function configureBillingPortal(product, prices) {
   // "year". Only the two standard prices are portal-switchable; the student
   // prices remain Checkout-only, which is fine since student status is
   // self-attested at signup and isn't something the portal verifies anyway.
+  // NOTE: student prices intentionally stay out of this list — Stripe
+  // requires every price attached to one product's portal config to have a
+  // UNIQUE recurring interval (a hard platform rule, not a config choice
+  // here), and this product already has one "month" + one "year" price
+  // (standard). Making the student prices *also* portal-switchable would
+  // need a genuinely separate Stripe Product (its own monthly+annual
+  // prices) — and since STRIPE_PRICE_MONTHLY_STUDENT/ANNUAL_STUDENT already
+  // exist and are referenced by live subscriptions, prices can't be moved
+  // to a different product after the fact. Not attempting that migration
+  // here; student users keep switching plans via Checkout (re-subscribe),
+  // same as today.
   const portalPrices = prices.filter((p) => p.lookup_key === "pro_monthly" || p.lookup_key === "pro_annual");
   await stripe.billingPortal.configurations.create({
     business_profile: { headline: "Manage your LectureAI subscription" },
@@ -104,6 +122,30 @@ async function configureBillingPortal(product, prices) {
   console.log("Configured Billing Portal (upgrade/downgrade/cancel enabled for standard Monthly/Annual; student prices are Checkout-only).");
 }
 
+// Referral codes (services/billing/referrals.js) each mint a personal
+// Promotion Code against this one shared Coupon — found by a fixed `id`
+// (Stripe coupons can be given a custom id, unlike prices which only
+// support lookup_key) so this script stays idempotent the same way the
+// prices above are.
+async function findOrCreateReferralCoupon() {
+  const couponId = "lectureai-referral";
+  try {
+    const existing = await stripe.coupons.retrieve(couponId);
+    console.log(`Referral coupon: reusing existing coupon ${existing.id}`);
+    return existing;
+  } catch (err) {
+    if (err?.code !== "resource_missing") throw err;
+  }
+  const coupon = await stripe.coupons.create({
+    id: couponId,
+    percent_off: REFERRAL_DISCOUNT_PERCENT,
+    duration: "once",
+    name: "Referral discount",
+  });
+  console.log(`Created referral coupon: ${coupon.id} (${REFERRAL_DISCOUNT_PERCENT}% off, once)`);
+  return coupon;
+}
+
 async function main() {
   console.log("Setting up Stripe products/prices for LectureAI...\n");
   const product = await findOrCreateProduct();
@@ -117,8 +159,12 @@ async function main() {
   console.log("\nConfiguring Billing Portal...");
   await configureBillingPortal(product, prices);
 
+  console.log("\nSetting up referral coupon...");
+  const referralCoupon = await findOrCreateReferralCoupon();
+
   console.log("\nDone. Paste these into server/.env:\n");
   PRICES.forEach((spec, i) => console.log(`${spec.envVar}=${prices[i].id}`));
+  console.log(`${REFERRAL_COUPON_ID_ENV_VAR}=${referralCoupon.id}`);
 
   console.log(
     "\nNext steps:\n" +

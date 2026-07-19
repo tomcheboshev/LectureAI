@@ -1,6 +1,16 @@
 import User from "../../models/User.js";
 import Invoice from "../../models/Invoice.js";
-import { GRACE_PERIOD_DAYS } from "./stripe.js";
+import { GRACE_PERIOD_DAYS, getStripe } from "./stripe.js";
+import {
+  sendWelcomePremiumEmail,
+  sendPaymentSuccessEmail,
+  sendPaymentFailedEmail,
+  sendTrialEndingEmail,
+  sendSubscriptionCancelledEmail,
+  sendSubscriptionResumedEmail,
+  sendRefundProcessedEmail,
+} from "./emails.js";
+import { creditReferralIfApplicable } from "./referrals.js";
 
 // Field-path notes (verified against the installed `stripe` package's own
 // .d.ts files, not assumed from memory — this API version moved several
@@ -86,14 +96,36 @@ async function handleCheckoutSessionCompleted(session) {
     user.stripeCustomerId = customerId;
     await user.save();
   }
+  await creditReferralIfApplicable(session);
   console.log(`[billing] Checkout completed for user ${userId} (customer ${customerId}) — subscription details will follow via customer.subscription.* events.`);
 }
 
-async function handleSubscriptionUpdated(subscription) {
+async function handleSubscriptionUpdated(subscription, { isNew = false } = {}) {
   const user = await findUserByCustomerId(typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id);
   if (!user) return;
+  // Captured before applySubscriptionToUser overwrites it — the edge
+  // (false->true / true->false) is the single trigger point for
+  // Subscription Cancelled / Subscription Resumed emails (wired in
+  // services/billing/emails.js), covering both Billing-Portal-initiated and
+  // in-app (routes/billing.js POST /cancel, /resume) changes identically,
+  // since both paths converge on this same webhook rather than emailing
+  // from the route handler itself.
+  const wasCancelAtPeriodEnd = Boolean(user.cancelAtPeriodEnd);
+  const isNowCancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end);
+
   applySubscriptionToUser(user, subscription);
   await user.save();
+
+  if (isNew) {
+    console.log(`[billing] New subscription for user ${user._id} (status=${subscription.status}).`);
+    await sendWelcomePremiumEmail(user);
+  } else if (!wasCancelAtPeriodEnd && isNowCancelAtPeriodEnd) {
+    console.log(`[billing] Subscription for user ${user._id} scheduled to cancel at period end.`);
+    await sendSubscriptionCancelledEmail(user);
+  } else if (wasCancelAtPeriodEnd && !isNowCancelAtPeriodEnd) {
+    console.log(`[billing] Subscription for user ${user._id} resumed (cancellation undone).`);
+    await sendSubscriptionResumedEmail(user);
+  }
   console.log(`[billing] Subscription synced for user ${user._id}: status=${subscription.status}, plan=${user.plan}, cancelAtPeriodEnd=${user.cancelAtPeriodEnd}`);
 }
 
@@ -105,7 +137,53 @@ async function handleSubscriptionDeleted(subscription) {
   user.cancelAtPeriodEnd = false;
   user.gracePeriodEndsAt = null;
   await user.save();
+  // Covers the immediate-cancellation path (POST /cancel {mode:"immediate"}
+  // or the subscription simply lapsing past its period end) — this event
+  // fires instead of .updated for those cases, so it needs its own
+  // Subscription Cancelled trigger rather than relying solely on the
+  // edge-detection above.
   console.log(`[billing] Subscription ended for user ${user._id} — downgraded to free.`);
+  await sendSubscriptionCancelledEmail(user);
+}
+
+// Fires ~3 days before subscription.trial_end (Stripe's own fixed schedule,
+// not configurable). No state mutation needed — its only job is triggering
+// the Trial Ending email.
+async function handleTrialWillEnd(subscription) {
+  const user = await findUserByCustomerId(typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id);
+  if (!user) return;
+  console.log(`[billing] Trial ending soon for user ${user._id} (trial_end=${toDate(subscription.trial_end)?.toISOString()}).`);
+  await sendTrialEndingEmail(user);
+}
+
+// event.data.object for charge.refunded IS the full Charge, so customer/
+// invoice are directly available with no extra Stripe API call.
+async function handleChargeRefunded(charge) {
+  const user = await findUserByCustomerId(typeof charge.customer === "string" ? charge.customer : charge.customer?.id);
+  if (!user) return;
+  const invoiceId = typeof charge.invoice === "string" ? charge.invoice : charge.invoice?.id;
+  if (invoiceId) {
+    await Invoice.updateOne({ stripeInvoiceId: invoiceId }, { refunded: true, amountRefunded: charge.amount_refunded });
+  }
+  console.log(`[billing] Refund processed for user ${user._id}: ${charge.amount_refunded} ${charge.currency} (charge ${charge.id}).`);
+  await sendRefundProcessedEmail(user, charge);
+}
+
+// event.data.object for charge.dispute.created is a Dispute, which only
+// carries the charge ID (string) — fetch the charge itself to resolve the
+// customer/invoice, same as any other webhook lookup in this file.
+async function handleDisputeCreated(dispute) {
+  const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+  if (!chargeId) return;
+  const charge = await getStripe().charges.retrieve(chargeId);
+  const user = await findUserByCustomerId(typeof charge.customer === "string" ? charge.customer : charge.customer?.id);
+  if (!user) return;
+  const invoiceId = typeof charge.invoice === "string" ? charge.invoice : charge.invoice?.id;
+  if (invoiceId) await Invoice.updateOne({ stripeInvoiceId: invoiceId }, { disputed: true });
+  // Deliberately no customer-facing email — a chargeback is adversarial
+  // (the customer disputed the charge with their bank), not a routine
+  // notice. Surfaced to admins via the chargebacks list (services/admin).
+  console.warn(`[billing] Chargeback opened for user ${user._id}: charge ${chargeId}, reason=${dispute.reason}.`);
 }
 
 async function upsertInvoiceRecord(invoice) {
@@ -142,6 +220,17 @@ async function handleInvoicePaid(invoice) {
     user.gracePeriodEndsAt = null;
     await user.save();
   }
+  // billing_reason distinguishes the very first invoice of a subscription
+  // ("subscription_create") from a renewal ("subscription_cycle") — the
+  // first is already covered by the Welcome Premium email fired from
+  // customer.subscription.created above, so only renewals get a Payment
+  // Success email here (with the invoice PDF link inline, per the locked
+  // decision to collapse Payment Success / Subscription Renewed / Invoice
+  // Available into one email instead of three per renewal).
+  if (invoice.billing_reason === "subscription_cycle") {
+    console.log(`[billing] Renewal invoice paid for user ${user._id}: ${invoice.id}.`);
+    await sendPaymentSuccessEmail(user, invoice);
+  }
   console.log(`[billing] Invoice paid for user ${user._id}: ${invoice.id} (${invoice.amount_paid} ${invoice.currency}).`);
 }
 
@@ -159,6 +248,7 @@ async function handleInvoicePaymentFailed(invoice) {
   user.gracePeriodEndsAt = new Date(Date.now() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000);
   await user.save();
   console.warn(`[billing] Payment failed for user ${user._id} — grace period until ${user.gracePeriodEndsAt.toISOString()}.`);
+  await sendPaymentFailedEmail(user);
 }
 
 // Dispatch table — one entry per Stripe event type this app acts on.
@@ -166,9 +256,12 @@ async function handleInvoicePaymentFailed(invoice) {
 // types than any single app needs to handle).
 export const WEBHOOK_HANDLERS = {
   "checkout.session.completed": (event) => handleCheckoutSessionCompleted(event.data.object),
-  "customer.subscription.created": (event) => handleSubscriptionUpdated(event.data.object),
+  "customer.subscription.created": (event) => handleSubscriptionUpdated(event.data.object, { isNew: true }),
   "customer.subscription.updated": (event) => handleSubscriptionUpdated(event.data.object),
   "customer.subscription.deleted": (event) => handleSubscriptionDeleted(event.data.object),
+  "customer.subscription.trial_will_end": (event) => handleTrialWillEnd(event.data.object),
   "invoice.paid": (event) => handleInvoicePaid(event.data.object),
   "invoice.payment_failed": (event) => handleInvoicePaymentFailed(event.data.object),
+  "charge.refunded": (event) => handleChargeRefunded(event.data.object),
+  "charge.dispute.created": (event) => handleDisputeCreated(event.data.object),
 };

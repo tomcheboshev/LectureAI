@@ -18,10 +18,42 @@
           <form class="flex flex-col gap-4" @submit.prevent="submit">
             <div>
               <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">{{ t("auth.resetPassword.newPasswordLabel") }}</label>
-              <input v-model="password" type="password" required autocomplete="new-password" class="input-field" :placeholder="t('auth.resetPassword.passwordPlaceholder')" />
+              <div class="relative">
+                <input
+                  v-model="password"
+                  :type="showPassword ? 'text' : 'password'"
+                  required
+                  autocomplete="new-password"
+                  class="input-field pr-10"
+                  :placeholder="t('auth.resetPassword.passwordPlaceholder')"
+                />
+                <button
+                  type="button"
+                  class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  :aria-label="showPassword ? t('common.hidePassword') : t('common.showPassword')"
+                  @click="showPassword = !showPassword"
+                >
+                  <EyeSlashIcon v-if="showPassword" class="w-4 h-4" />
+                  <EyeIcon v-else class="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">{{ t("auth.resetPassword.confirmPasswordLabel") }}</label>
+              <input
+                v-model="confirmPassword"
+                :type="showPassword ? 'text' : 'password'"
+                required
+                autocomplete="new-password"
+                class="input-field"
+                :placeholder="t('auth.resetPassword.confirmPasswordPlaceholder')"
+                :aria-invalid="confirmMismatch"
+                aria-describedby="confirm-password-error"
+              />
+              <p v-if="confirmMismatch" id="confirm-password-error" class="text-xs text-danger mt-1.5" aria-live="polite">{{ t("auth.resetPassword.confirmPasswordMismatch") }}</p>
             </div>
 
-            <div v-if="error" class="rounded-xl border border-danger/30 bg-danger/5 text-danger text-sm px-4 py-2.5">{{ error }}</div>
+            <div v-if="error" class="rounded-xl border border-danger/30 bg-danger/5 text-danger text-sm px-4 py-2.5" aria-live="polite">{{ error }}</div>
 
             <button :disabled="loading" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-white shadow-lg shadow-primary/25 hover:bg-primary-hover disabled:opacity-40 transition mt-2">
               <ArrowPathIcon v-if="loading" class="w-4 h-4 animate-spin" />
@@ -44,21 +76,29 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { RouterLink, useRoute } from "vue-router";
-import { ArrowPathIcon, CheckCircleIcon } from "@heroicons/vue/24/outline";
+import { ArrowPathIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useI18n } from "../composables/useI18n.js";
 
 const { t } = useI18n();
 const route = useRoute();
 const password = ref("");
+const confirmPassword = ref("");
+const showPassword = ref(false);
 const loading = ref(false);
 const error = ref("");
 const done = ref(false);
 
+const confirmMismatch = computed(() => confirmPassword.value.length > 0 && password.value !== confirmPassword.value);
+
 async function submit() {
   error.value = "";
+  if (confirmMismatch.value) {
+    error.value = t("auth.resetPassword.confirmPasswordMismatch");
+    return;
+  }
   loading.value = true;
   try {
     await api.resetPassword({ token: route.params.token, password: password.value });

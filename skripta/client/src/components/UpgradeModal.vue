@@ -77,6 +77,7 @@ import { useUpgradeStore } from "../stores/upgrade.js";
 import { useBillingStore } from "../stores/billing.js";
 import { useI18n } from "../composables/useI18n.js";
 import { useModalBehavior } from "../composables/useModalBehavior.js";
+import { TRIAL_DAYS, PRICING_PLANS } from "../constants/pricing.js";
 
 const upgrade = useUpgradeStore();
 const billing = useBillingStore();
@@ -96,13 +97,6 @@ const proFeatures = [
   "upgradeModal.features.noWatermark",
 ];
 
-// Trial length + display prices mirror scripts/stripe-setup.mjs — the
-// actual charge always comes from the real Stripe Price server-side
-// regardless of what's shown here, but keep these in sync if pricing
-// changes so the modal isn't misleading.
-const TRIAL_DAYS = 7;
-const DISPLAY_PRICES = { monthly: 9.99, annual: 79, monthly_student: 4.99, annual_student: 39.5 };
-
 const interval = ref("monthly"); // "monthly" | "annual"
 const isStudent = ref(false);
 
@@ -110,7 +104,7 @@ const planKey = computed(() => {
   if (interval.value === "monthly") return isStudent.value ? "monthly_student" : "monthly";
   return isStudent.value ? "annual_student" : "annual";
 });
-const displayPrice = computed(() => DISPLAY_PRICES[planKey.value].toFixed(2).replace(/\.00$/, ""));
+const displayPrice = computed(() => PRICING_PLANS[planKey.value].toFixed(2).replace(/\.00$/, ""));
 
 async function doCheckout() {
   error.value = "";

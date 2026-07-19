@@ -56,16 +56,29 @@ export function renderLatexSegments(rawText) {
   return out;
 }
 
+// Only http(s)/mailto/relative URLs are ever turned into a real href/src —
+// anything else (e.g. a "javascript:" URI) falls back to plain escaped
+// text instead of a link, since this HTML is inserted via v-html.
+function isSafeUrl(url) {
+  return /^(https?:|mailto:|\/|#)/i.test(url.trim());
+}
+
 // Inline formatting shared by every renderer in this app: LaTeX first (via
 // renderLatexSegments, which does its own HTML-escaping of everything that
 // isn't math) so **bold** markers inside a $...$ span are never misread as
-// literal asterisks, then bold/italic/inline-code on top of the result.
-// Lives here (not in useMarkdown.js) so useMarkdown.js can import it
-// without a circular dependency, since it already imports
+// literal asterisks, then bold/italic/inline-code/links/images on top of
+// the result. Lives here (not in useMarkdown.js) so useMarkdown.js can
+// import it without a circular dependency, since it already imports
 // renderLatexSegments from this module.
+//
+// Images before links: an image "![alt](url)" contains "[alt](url)" as a
+// substring, so a link pass run first would misfire on it and produce a
+// bare <a> where an <img> belongs.
 export function renderInline(text) {
   return renderLatexSegments(String(text ?? ""))
     .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (full, alt, url) => (isSafeUrl(url) ? `<img src="${url}" alt="${alt}" loading="lazy">` : full))
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (full, label, url) => (isSafeUrl(url) ? `<a href="${url}" rel="noopener noreferrer">${label}</a>` : full))
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
 }

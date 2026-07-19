@@ -12,10 +12,22 @@ export function setAccessToken(token) {
   accessToken = token;
 }
 
+// Reads the non-httpOnly csrf_token cookie (set by the server alongside the
+// refresh cookie — see server/src/middleware/csrf.js) and echoes it back as
+// a header. Attached unconditionally on every request rather than only on
+// /refresh and /logout — the two routes that actually check it — since an
+// extra unused header is harmless and this keeps the interceptor simple.
+function readCsrfCookie() {
+  const match = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 http.interceptors.request.use((config) => {
   if (accessToken && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
+  const csrfToken = readCsrfCookie();
+  if (csrfToken) config.headers["X-CSRF-Token"] = csrfToken;
   return config;
 });
 
@@ -73,6 +85,7 @@ http.interceptors.response.use(
     wrapped.reason = err.response?.data?.reason;
     wrapped.limit = err.response?.data?.limit;
     wrapped.plan = err.response?.data?.plan;
+    wrapped.retryAfterSeconds = err.response?.data?.retryAfterSeconds;
     return Promise.reject(wrapped);
   }
 );
@@ -91,6 +104,43 @@ export const api = {
   getMe: () => http.get("/auth/me").then((r) => r.data),
   updateProfile: (payload) => http.patch("/auth/me", payload).then((r) => r.data),
   deleteAccount: (payload) => http.delete("/auth/me", { data: payload }).then((r) => r.data),
+  reactivate: () => http.post("/auth/reactivate").then((r) => r.data),
+  uploadAvatar: (file) => {
+    const form = new FormData();
+    form.append("avatar", file);
+    return http.post("/auth/avatar", form).then((r) => r.data);
+  },
+  changeEmail: (payload) => http.post("/auth/email", payload).then((r) => r.data),
+  verifyEmailChange: (payload) => http.post("/auth/verify-email-change", payload).then((r) => r.data),
+  getConnectedAccounts: () => http.get("/auth/connected-accounts").then((r) => r.data),
+  disconnectProvider: (provider) => http.delete(`/auth/connected-accounts/${provider}`).then((r) => r.data),
+  // Triggers a same-tab download (Content-Disposition: attachment) — the
+  // browser handles saving it, no blob/URL.createObjectURL dance needed
+  // like the admin CSV reports (those need the Bearer header attached
+  // manually since a plain <a href> can't carry it; this one does too, for
+  // the same reason, hence responseType: "blob").
+  exportData: async () => {
+    const res = await http.get("/auth/export-data", { responseType: "blob" });
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "lectureai-export.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+  // OAuth is a real browser navigation (an <a href>), not a fetch — this
+  // capability check just tells the UI which "Continue with" buttons to
+  // show, matching whichever providers actually have credentials configured
+  // server-side.
+  getOAuthProviders: () => http.get("/auth/oauth/providers").then((r) => r.data),
+
+  // Session management (Settings > Sessions)
+  listSessions: () => http.get("/auth/sessions").then((r) => r.data),
+  revokeSession: (sessionId) => http.delete(`/auth/sessions/${sessionId}`).then((r) => r.data),
+  revokeOtherSessions: () => http.post("/auth/sessions/revoke-others").then((r) => r.data),
+  revokeAllSessions: () => http.post("/auth/sessions/revoke-all").then((r) => r.data),
 
   // Billing (Stripe Checkout for new subscriptions, Stripe's own hosted
   // Billing Portal for upgrade/downgrade/cancel/resume/invoices).
@@ -98,6 +148,11 @@ export const api = {
   createBillingPortalSession: () => http.post("/billing/portal").then((r) => r.data),
   getSubscription: () => http.get("/billing/subscription").then((r) => r.data),
   getInvoices: () => http.get("/billing/invoices").then((r) => r.data),
+  getCheckoutSession: (sessionId) => http.get(`/billing/checkout-session/${sessionId}`).then((r) => r.data),
+  cancelSubscription: (mode, reason) => http.post("/billing/cancel", { mode, reason }).then((r) => r.data),
+  resumeSubscription: () => http.post("/billing/resume").then((r) => r.data),
+  retryInvoice: (invoiceId) => http.post("/billing/retry-invoice", { invoiceId }).then((r) => r.data),
+  getReferral: () => http.get("/referrals/mine").then((r) => r.data),
 
   // Study packages
   listPackages: () => http.get("/packages").then((r) => r.data),

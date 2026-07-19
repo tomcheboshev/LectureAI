@@ -76,6 +76,81 @@ async function revenueSeries() {
   return rows.map((r) => ({ month: r._id, amountUsd: r.total / 100 }));
 }
 
+// Count of paying (active or trialing) subscribers — the denominator for
+// both ARPU and churn rate below.
+async function countPayingSubscribers() {
+  return User.countDocuments({ subscriptionStatus: { $in: ACTIVE_STATUSES } });
+}
+
+// Point-in-time approximation, not a true cohort-based rate: there is no
+// historical monthly snapshot job recording how many subscribers existed at
+// the START of the month, so this instead divides "subscriptions that ended
+// this calendar month" (by Mongo's updatedAt, a reasonable proxy since
+// applySubscriptionToUser() only touches a canceled subscription's document
+// once, right when it's canceled) by the CURRENT paying-subscriber count.
+// This is documented here rather than silently presented as exact — swap in
+// a real cohort calculation (requires a recurring snapshot job) if the
+// business ever needs board-grade churn reporting.
+async function computeChurnRate() {
+  const monthStart = startOfUtcMonth();
+  const [canceledThisMonth, payingNow] = await Promise.all([
+    User.countDocuments({ subscriptionStatus: "canceled", updatedAt: { $gte: monthStart } }),
+    countPayingSubscribers(),
+  ]);
+  if (payingNow === 0) return 0;
+  return canceledThisMonth / payingNow;
+}
+
+// LTV = ARPU / churn rate — the standard subscription-SaaS approximation.
+// Both this and churnRate above inherit the same point-in-time-approximation
+// caveat, since LTV is directly derived from churn.
+async function computeLtv(mrr, churnRate) {
+  const payingNow = await countPayingSubscribers();
+  if (payingNow === 0 || churnRate === 0) return 0;
+  const arpu = mrr / payingNow;
+  return arpu / churnRate;
+}
+
+// Most recent refunds/chargebacks — flagged onto Invoice by the
+// charge.refunded / charge.dispute.created webhook handlers (17.1).
+async function listRefunds() {
+  const invoices = await Invoice.find({ refunded: true }).sort({ updatedAt: -1 }).limit(50).populate("owner", "name email").lean();
+  return invoices.map((inv) => ({
+    invoiceId: inv.stripeInvoiceId,
+    userName: inv.owner?.name || null,
+    userEmail: inv.owner?.email || null,
+    amountRefunded: inv.amountRefunded || 0,
+    currency: inv.currency,
+    disputed: inv.disputed,
+    updatedAt: inv.updatedAt,
+  }));
+}
+
+// Subscriptions that are either fully ended or scheduled to end — covers
+// both the immediate-cancel and cancel-at-period-end paths from 17.1/17.4.
+async function listCancelledSubscriptions() {
+  const users = await User.find({
+    stripeSubscriptionId: { $ne: null },
+    $or: [{ subscriptionStatus: "canceled" }, { cancelAtPeriodEnd: true }],
+  })
+    .sort({ updatedAt: -1 })
+    .limit(50)
+    .select("name email plan subscriptionStatus cancelAtPeriodEnd currentPeriodEnd updatedAt")
+    .lean();
+  return users;
+}
+
+// Self-attested at checkout (isStudent), not third-party verified — see
+// scripts/stripe-setup.mjs's student-price comments for why. This just
+// surfaces who's using it, for spotting abuse.
+async function studentDiscountUsage() {
+  const [activeCount, users] = await Promise.all([
+    User.countDocuments({ isStudent: true, subscriptionStatus: { $in: ACTIVE_STATUSES } }),
+    User.find({ isStudent: true }).sort({ updatedAt: -1 }).limit(50).select("name email plan subscriptionStatus billingInterval updatedAt").lean(),
+  ]);
+  return { activeCount, users };
+}
+
 export async function getOverviewStats() {
   const now = new Date();
   const monthStart = startOfUtcMonth(now);
@@ -94,6 +169,14 @@ export async function getOverviewStats() {
     revenueSeries(),
   ]);
 
+  // arr is a straight annualization of current MRR (a projection); it's
+  // distinct from `annualRevenue` above, which is actual paid invoices
+  // year-to-date — kept both since they answer different questions.
+  const arr = mrr * 12;
+  const churnRate = await computeChurnRate();
+  const ltv = await computeLtv(mrr, churnRate);
+  const [refunds, cancelledSubscriptions, studentDiscounts] = await Promise.all([listRefunds(), listCancelledSubscriptions(), studentDiscountUsage()]);
+
   return {
     totalUsers,
     newUsers,
@@ -102,6 +185,12 @@ export async function getOverviewStats() {
     monthlyRevenue,
     annualRevenue,
     mrr,
+    arr,
+    churnRate,
+    ltv,
+    refunds,
+    cancelledSubscriptions,
+    studentDiscounts,
     userGrowthSeries: growth,
     revenueSeries: revenue,
   };

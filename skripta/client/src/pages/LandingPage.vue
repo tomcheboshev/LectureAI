@@ -1,36 +1,12 @@
 <template>
   <div class="bg-slate-50 dark:bg-canvas-dark text-slate-900 dark:text-white overflow-x-hidden">
-    <!-- Nav -->
-    <header class="sticky top-0 z-30 border-b border-slate-200/70 dark:border-border-dark bg-slate-50/80 dark:bg-canvas-dark/80 backdrop-blur">
-      <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary text-white font-display font-bold text-sm">L</span>
-          <span class="font-display font-bold text-lg">LectureAI</span>
-        </div>
-        <nav class="hidden sm:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300">
-          <a href="#features" class="hover:text-primary transition">{{ t("landing.nav.features") }}</a>
-          <a href="#how-it-works" class="hover:text-primary transition">{{ t("landing.nav.howItWorks") }}</a>
-          <a href="#faq" class="hover:text-primary transition">{{ t("landing.nav.faq") }}</a>
-        </nav>
-        <div class="flex items-center gap-2">
-          <button
-            class="sm:hidden p-2 -mr-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 transition"
-            :aria-label="t('landing.nav.menu')"
-            @click="mobileNavOpen = !mobileNavOpen"
-          >
-            <Bars3Icon class="w-6 h-6" />
-          </button>
-          <button class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-primary/30 hover:bg-primary-hover transition" @click="router.push('/dashboard')">
-            {{ t("landing.nav.openApp") }} <ArrowRightIcon class="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-      <nav v-if="mobileNavOpen" class="sm:hidden flex flex-col border-t border-slate-200/70 dark:border-border-dark px-6 py-3 gap-3 text-sm font-medium text-slate-600 dark:text-slate-300">
-        <a href="#features" class="hover:text-primary transition" @click="mobileNavOpen = false">{{ t("landing.nav.features") }}</a>
-        <a href="#how-it-works" class="hover:text-primary transition" @click="mobileNavOpen = false">{{ t("landing.nav.howItWorks") }}</a>
-        <a href="#faq" class="hover:text-primary transition" @click="mobileNavOpen = false">{{ t("landing.nav.faq") }}</a>
-      </nav>
-    </header>
+    <!-- Nav — shared with every other marketing page (Features/Pricing/Blog/
+         FAQ/About links + mobile drawer) so Landing isn't the one page on
+         the site with no way to reach them. The in-page anchor sections
+         below (#features/#how-it-works/#faq) stay as page CONTENT; they're
+         no longer duplicated as nav shortcuts now that Features/FAQ are
+         real standalone pages. -->
+    <MarketingHeader />
 
     <!-- Hero -->
     <section class="relative max-w-6xl mx-auto px-6 pt-20 pb-24 text-center">
@@ -153,31 +129,33 @@
       </div>
     </section>
 
-    <footer class="border-t border-slate-200 dark:border-border-dark py-10">
-      <div class="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500 dark:text-slate-400">
-        <div class="flex items-center gap-2">
-          <span class="flex items-center justify-center w-6 h-6 rounded-md bg-gradient-to-br from-primary to-secondary text-white font-display font-bold text-xs">L</span>
-          <span class="font-display font-semibold text-slate-700 dark:text-slate-200">LectureAI</span>
-        </div>
-        <p>{{ t("landing.footer.tagline") }}</p>
-      </div>
-    </footer>
+    <MarketingFooter />
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
 import { useRouter } from "vue-router";
 import {
-  ArrowRightIcon, SparklesIcon, ChevronDownIcon, Bars3Icon,
+  ArrowRightIcon, SparklesIcon, ChevronDownIcon,
   BookOpenIcon, AcademicCapIcon, ChatBubbleLeftRightIcon,
   RectangleStackIcon, ClipboardDocumentCheckIcon, ListBulletIcon,
 } from "@heroicons/vue/24/outline";
 import { useI18n } from "../composables/useI18n.js";
+import { useSeoMeta } from "../composables/useSeoMeta.js";
+import { softwareApplicationSchema } from "../seo/schema.js";
+import { PRICING_PLANS } from "../constants/pricing.js";
+import MarketingHeader from "../components/marketing/MarketingHeader.vue";
+import MarketingFooter from "../components/marketing/MarketingFooter.vue";
 
 const router = useRouter();
 const { t } = useI18n();
-const mobileNavOpen = ref(false);
+
+useSeoMeta({
+  title: t("seo.landing.title"),
+  description: t("seo.landing.description"),
+  canonicalPath: "/",
+  structuredData: [softwareApplicationSchema(PRICING_PLANS)],
+});
 
 const features = [
   { key: "chapterSummaries", icon: BookOpenIcon, tint: "bg-primary/10", color: "text-primary" },

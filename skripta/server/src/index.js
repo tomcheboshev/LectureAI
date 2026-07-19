@@ -1,4 +1,6 @@
 import "dotenv/config";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -6,15 +8,19 @@ import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import mongoose from "mongoose";
 import authRouter from "./routes/auth.js";
+import oauthRouter from "./routes/oauth.js";
 import packagesRouter from "./routes/packages.js";
 import chatRouter from "./routes/chat.js";
 import analyticsRouter from "./routes/analytics.js";
 import billingRouter from "./routes/billing.js";
 import billingWebhookRouter from "./routes/billingWebhook.js";
+import referralsRouter from "./routes/referrals.js";
 import adminRouter from "./routes/admin/index.js";
 import supportRouter from "./routes/support.js";
 import contactRouter from "./routes/contact.js";
+import ogRouter from "./routes/og.js";
 import { reconcileStrandedJobs } from "./services/reconcileJobs.js";
+import { purgeExpiredDeletions } from "./services/auth/deletion.js";
 import { logError } from "./utils/logger.js";
 
 // Without these, Node's default behavior for an unhandled promise rejection
@@ -74,15 +80,47 @@ app.use(
   })
 );
 
+// Serves uploaded avatars (server/uploads/avatars/<file>.webp, see
+// services/auth/avatars.js) — the only persisted-to-disk user content in
+// this app. Not rate-limited above like /api since it's plain static asset
+// serving, not an API surface.
+app.use("/uploads", express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), "../uploads")));
+
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api/auth", authRouter);
+app.use("/api/auth/oauth", oauthRouter);
 app.use("/api/packages", packagesRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/billing", billingRouter);
+app.use("/api/referrals", referralsRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/support", supportRouter);
 app.use("/api/contact", contactRouter);
+app.use("/api/og", ogRouter);
+
+// Opt-in (not NODE_ENV-gated) so the local two-process dev setup — Vite on
+// :5173 proxying /api to this server on :3000 — is completely unaffected
+// unless this is explicitly turned on. When enabled, serves the client's
+// prerendered build: express.static's default index:true resolves clean
+// URLs like /features straight to dist/features/index.html (written by
+// client/scripts/prerender.mjs); any route with no prerendered file (e.g.
+// /dashboard) falls through to the catch-all below, serving the plain CSR
+// shell so client-side routing takes over.
+if (process.env.SERVE_CLIENT === "true") {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const CLIENT_DIST = path.join(__dirname, "../../client/dist");
+  app.use(express.static(CLIENT_DIST));
+  app.get(/.*/, (req, res, next) => {
+    if (req.path.startsWith("/api")) return next(); // let a mistyped API path fall through to the JSON 404 below, not the SPA shell
+    // app-shell.html (not index.html) — index.html IS the prerendered
+    // landing page for "/", and serving that as the fallback for e.g.
+    // /dashboard would flash the wrong title/content before client JS
+    // reroutes. app-shell.html is a page-agnostic copy of the same bare
+    // template, preserved by prerender.mjs before "/" overwrites index.html.
+    res.sendFile(path.join(CLIENT_DIST, "app-shell.html"));
+  });
+}
 
 app.use((_req, res) => res.status(404).json({ error: "Not found." }));
 
@@ -106,8 +144,8 @@ const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/Study";
 
 async function start() {
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn("WARNING: GEMINI_API_KEY is not set — generation and chat will fail.");
+  if (!process.env.OPENROUTER_API_KEY) {
+    console.warn("WARNING: OPENROUTER_API_KEY is not set — generation and chat will fail.");
   }
   if (!process.env.STRIPE_SECRET_KEY) {
     console.warn("WARNING: STRIPE_SECRET_KEY is not set — checkout and billing portal will fail.");
@@ -118,10 +156,29 @@ async function start() {
   if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
     throw new Error("JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be set (see .env.example).");
   }
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.warn("WARNING: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not set — 'Continue with Google' will be hidden.");
+  }
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    console.warn("WARNING: GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET not set — 'Continue with GitHub' will be hidden.");
+  }
+  if (!process.env.OAUTH_STATE_SECRET) {
+    console.warn("WARNING: OAUTH_STATE_SECRET is not set — any OAuth login attempt will fail even if a provider is configured.");
+  }
 
   await mongoose.connect(MONGODB_URI);
   console.log("MongoDB connected:", MONGODB_URI);
   await reconcileStrandedJobs();
+
+  // Same "no dedicated job runner, do maintenance work in the long-lived
+  // Node process" posture as reconcileStrandedJobs() above, just recurring
+  // instead of once — a scheduled-for-deletion account must actually get
+  // purged even if nothing else ever triggers a check for it.
+  await purgeExpiredDeletions().catch((err) => console.error("Initial purge-expired-deletions failed:", err));
+  setInterval(() => {
+    purgeExpiredDeletions().catch((err) => console.error("Scheduled purge-expired-deletions failed:", err));
+  }, 60 * 60 * 1000);
+
   app.listen(PORT, () => console.log(`API on http://localhost:${PORT}`));
 }
 

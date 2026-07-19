@@ -1,13 +1,13 @@
 // Best-effort, clearly-labeled-as-an-estimate cost table — not billing-grade.
 // Prices are USD per 1M tokens and will drift out of date; unrecognized
-// models return null rather than a silently wrong number. Check
-// https://ai.google.dev/gemini-api/docs/pricing for current rates before
-// trusting this for anything beyond a rough usage signal.
+// models return null rather than a silently wrong number. OpenRouter's own
+// per-model pricing (https://openrouter.ai/models) is the source of truth
+// and can change at any time — this table only covers the configured
+// default ("openrouter/free", genuinely $0) plus a couple of common paid
+// aliases; add an entry here if a different OPENROUTER_MODEL is configured
+// and cost visibility matters.
 const PRICING_PER_MILLION_TOKENS = {
-  "gemini-2.5-pro": { input: 1.25, output: 10 },
-  "gemini-2.5-flash": { input: 0.3, output: 2.5 },
-  "gemini-2.5-flash-lite": { input: 0.1, output: 0.4 },
-  "gemini-2.0-flash": { input: 0.1, output: 0.4 },
+  "openrouter/free": { input: 0, output: 0 },
 };
 
 export function estimateCostUsd({ model, promptTokens, candidatesTokens }) {

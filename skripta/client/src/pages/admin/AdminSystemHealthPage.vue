@@ -33,8 +33,8 @@
         <h2 class="font-display font-bold text-sm text-slate-900 dark:text-white mb-4">{{ t("admin.health.config") }}</h2>
         <ul class="space-y-2">
           <li class="flex items-center justify-between text-sm">
-            <span class="text-slate-600 dark:text-slate-300">Gemini API key</span>
-            <span class="badge" :class="health.config.geminiConfigured ? 'badge-success' : 'badge-danger'">{{ health.config.geminiConfigured ? t("admin.health.set") : t("admin.health.missing") }}</span>
+            <span class="text-slate-600 dark:text-slate-300">OpenRouter API key</span>
+            <span class="badge" :class="health.config.aiConfigured ? 'badge-success' : 'badge-danger'">{{ health.config.aiConfigured ? t("admin.health.set") : t("admin.health.missing") }}</span>
           </li>
           <li class="flex items-center justify-between text-sm">
             <span class="text-slate-600 dark:text-slate-300">Stripe secret key</span>

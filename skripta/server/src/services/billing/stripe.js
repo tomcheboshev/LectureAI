@@ -3,7 +3,7 @@ import Stripe from "stripe";
 // Lazily constructed so the module can be imported (e.g. by scripts) even
 // before STRIPE_SECRET_KEY is set — the error only surfaces when a route
 // actually tries to use it, matching how this app already treats
-// GEMINI_API_KEY (warn at boot, fail at point of use, never crash startup).
+// OPENROUTER_API_KEY (warn at boot, fail at point of use, never crash startup).
 let stripeClient = null;
 export function getStripe() {
   if (!stripeClient) {
@@ -45,7 +45,7 @@ export function priceIdForPlan(planKey) {
 // revokes it, giving the card time to be updated via the customer portal
 // (Stripe also auto-retries the charge a few times within this window).
 export const TRIAL_PERIOD_DAYS = 7;
-export const GRACE_PERIOD_DAYS = 3;
+export const GRACE_PERIOD_DAYS = 7;
 
 // Creates a Stripe Checkout Session for a new (or resumed) subscription.
 // Reuses the user's existing Stripe customer if they have one — keeps
@@ -87,4 +87,52 @@ export async function createBillingPortalSession({ user, returnUrl }) {
     throw Object.assign(new Error("You don't have a billing account yet — subscribe first."), { userFacing: true, status: 400 });
   }
   return stripe.billingPortal.sessions.create({ customer: user.stripeCustomerId, return_url: returnUrl });
+}
+
+// The Billing Portal's "Cancel subscription" flow only supports
+// cancel-at-period-end (hardcoded in scripts/stripe-setup.mjs) — it
+// structurally cannot cancel immediately. These two functions are the
+// in-app equivalent, used by the custom Keep/Cancel-at-period-end/
+// Cancel-immediately modal. Both re-fetch the subscription from Stripe
+// first rather than trusting the locally-cached user.stripeSubscriptionId
+// status, since local state can lag a webhook by a few seconds.
+//
+// Neither function writes to Mongo or sends email — that's deliberately
+// left entirely to the webhook pipeline (customer.subscription.updated /
+// .deleted), which fires identically whether the change originated here or
+// from the Billing Portal. Two independent call sites both writing state
+// and firing emails would risk double-sends; one write path avoids that
+// by construction instead of needing de-duplication logic.
+export async function cancelSubscription({ user, mode, reason }) {
+  const stripe = getStripe();
+  if (!user.stripeSubscriptionId) {
+    throw Object.assign(new Error("You don't have an active subscription to cancel."), { userFacing: true, status: 400 });
+  }
+  const current = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
+  if (current.status === "canceled") {
+    throw Object.assign(new Error("This subscription is already canceled."), { userFacing: true, status: 400 });
+  }
+  const cancellation_details = reason ? { comment: reason } : undefined;
+  if (mode === "immediate") {
+    return stripe.subscriptions.cancel(user.stripeSubscriptionId, { cancellation_details });
+  }
+  return stripe.subscriptions.update(user.stripeSubscriptionId, { cancel_at_period_end: true, cancellation_details });
+}
+
+export async function resumeSubscription({ user }) {
+  const stripe = getStripe();
+  if (!user.stripeSubscriptionId) {
+    throw Object.assign(new Error("You don't have a subscription to resume."), { userFacing: true, status: 400 });
+  }
+  const current = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
+  if (current.status === "canceled") {
+    throw Object.assign(
+      new Error("This subscription has already ended and can't be resumed — please subscribe again."),
+      { userFacing: true, status: 400 }
+    );
+  }
+  if (!current.cancel_at_period_end) {
+    throw Object.assign(new Error("This subscription isn't scheduled to cancel."), { userFacing: true, status: 400 });
+  }
+  return stripe.subscriptions.update(user.stripeSubscriptionId, { cancel_at_period_end: false });
 }

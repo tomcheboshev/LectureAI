@@ -1,15 +1,12 @@
 <template>
   <div class="min-h-screen bg-slate-50 dark:bg-canvas-dark text-slate-900 dark:text-white">
-    <header class="border-b border-slate-200/70 dark:border-border-dark">
-      <div class="max-w-2xl mx-auto px-6 h-16 flex items-center">
-        <RouterLink to="/" class="flex items-center gap-2">
-          <span class="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary text-white font-display font-bold text-sm">L</span>
-          <span class="font-display font-bold text-lg">LectureAI</span>
-        </RouterLink>
-      </div>
-    </header>
+    <MarketingHeader />
 
-    <div class="max-w-2xl mx-auto px-6 py-16">
+    <div class="max-w-2xl mx-auto px-6 pt-8">
+      <Breadcrumbs :items="crumbs" />
+    </div>
+
+    <div class="max-w-2xl mx-auto px-6 pt-8 pb-16">
       <h1 class="font-display font-extrabold text-3xl mb-2">{{ t("contact.title") }}</h1>
       <p class="text-sm text-slate-500 dark:text-slate-400 mb-8">{{ t("contact.subtitle") }}</p>
 
@@ -41,17 +38,35 @@
         </button>
       </div>
     </div>
+
+    <MarketingFooter />
   </div>
 </template>
 
 <script setup>
 import { ref } from "vue";
-import { RouterLink } from "vue-router";
 import { CheckCircleIcon } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useI18n } from "../composables/useI18n.js";
+import { useSeoMeta } from "../composables/useSeoMeta.js";
+import { breadcrumbListSchema } from "../seo/schema.js";
+import MarketingHeader from "../components/marketing/MarketingHeader.vue";
+import MarketingFooter from "../components/marketing/MarketingFooter.vue";
+import Breadcrumbs from "../components/marketing/Breadcrumbs.vue";
 
 const { t } = useI18n();
+
+const crumbs = [
+  { label: t("marketing.breadcrumbHome"), path: "/" },
+  { label: t("marketing.nav.contactUs"), path: "/contact" },
+];
+
+useSeoMeta({
+  title: t("seo.contact.title"),
+  description: t("seo.contact.description"),
+  canonicalPath: "/contact",
+  structuredData: [breadcrumbListSchema(crumbs)],
+});
 const name = ref("");
 const email = ref("");
 const subject = ref("");

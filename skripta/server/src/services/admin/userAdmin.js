@@ -102,7 +102,12 @@ export async function softDeleteUser(admin, userId) {
   const user = await User.findById(userId).select("+passwordHash +refreshTokens");
   if (!user) return null;
 
-  user.name = "Deleted user";
+  // Set directly (not just `name`) — the User model's pre("save") hook only
+  // re-derives `name` when firstName/lastName are the fields marked dirty,
+  // so scrubbing just `name` here would leave the real first/last name
+  // sitting in the DB even though the display name reads "Deleted user".
+  user.firstName = "Deleted";
+  user.lastName = "user";
   user.email = `deleted-${user._id}@deleted.invalid`;
   user.passwordHash = "!"; // not a valid bcrypt hash — comparePassword can never match it
   user.banned = true;

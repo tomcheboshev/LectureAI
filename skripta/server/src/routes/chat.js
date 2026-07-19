@@ -1,6 +1,6 @@
 import { Router } from "express";
 import StudyPackage from "../models/StudyPackage.js";
-import { chatAboutLecture } from "../services/gemini.js";
+import { chatAboutLecture } from "../ai/index.js";
 import { requireAuth } from "../middleware/auth.js";
 import { respondError } from "../utils/httpError.js";
 import { planLimits, upgradeError } from "../services/subscription.js";

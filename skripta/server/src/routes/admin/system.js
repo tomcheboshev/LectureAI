@@ -53,7 +53,7 @@ router.get("/health", (_req, res) => {
     },
     queue: getQueueStatus(),
     config: {
-      geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+      aiConfigured: Boolean(process.env.OPENROUTER_API_KEY),
       stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
       stripeWebhookConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
     },
