@@ -23,6 +23,18 @@
         <pre v-if="log.context" class="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap">{{ JSON.stringify(log.context) }}</pre>
       </li>
     </ul>
+
+    <div v-if="total > limit" class="flex items-center justify-between mt-4 text-sm text-slate-500 dark:text-slate-400">
+      <span>{{ t("admin.users.pageOf", { page, pages: Math.ceil(total / limit) }) }}</span>
+      <div class="flex gap-2">
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-border-dark disabled:opacity-40" :disabled="page <= 1" @click="changePage(page - 1)">
+          {{ t("admin.users.prev") }}
+        </button>
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-border-dark disabled:opacity-40" :disabled="page * limit >= total" @click="changePage(page + 1)">
+          {{ t("admin.users.next") }}
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -36,19 +48,29 @@ import EmptyState from "../../components/ui/EmptyState.vue";
 
 const { t, lang } = useI18n();
 const logs = ref([]);
+const total = ref(0);
+const page = ref(1);
+const limit = ref(25);
 const loading = ref(false);
 const level = ref("");
 
 async function reload() {
   loading.value = true;
   try {
-    const result = await adminApi.getErrorLogs({ level: level.value });
+    const result = await adminApi.getErrorLogs({ level: level.value, page: page.value, limit: limit.value });
     logs.value = result.logs;
+    total.value = result.total;
+    page.value = result.page;
   } catch (err) {
     reportApiError(err);
   } finally {
     loading.value = false;
   }
+}
+
+function changePage(p) {
+  page.value = p;
+  reload();
 }
 
 function formatDate(d) {

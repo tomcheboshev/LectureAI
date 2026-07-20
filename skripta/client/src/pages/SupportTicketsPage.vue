@@ -24,12 +24,12 @@
     <div v-if="loading" class="text-center py-10 text-sm text-slate-400">{{ t("admin.users.loading") }}</div>
     <p v-else-if="!tickets.length" class="text-sm text-slate-400">{{ t("support.noTickets") }}</p>
     <ul v-else class="space-y-2">
-      <li v-for="ticket in tickets" :key="ticket._id" class="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark p-4 flex items-center justify-between">
-        <div>
-          <p class="text-sm font-medium text-slate-900 dark:text-white">{{ ticket.subject }}</p>
+      <li v-for="ticket in tickets" :key="ticket._id" class="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark p-4 flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-slate-900 dark:text-white break-words">{{ ticket.subject }}</p>
           <p class="text-xs text-slate-400">{{ formatDate(ticket.createdAt) }}</p>
         </div>
-        <span class="badge" :class="statusBadge(ticket.status)">{{ t(`support.status.${ticket.status}`) }}</span>
+        <span class="badge shrink-0" :class="statusBadge(ticket.status)">{{ t(`support.status.${ticket.status}`) }}</span>
       </li>
     </ul>
   </div>

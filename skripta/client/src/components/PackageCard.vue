@@ -1,5 +1,5 @@
 <template>
-  <div class="group relative flex flex-col rounded-2xl bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark overflow-hidden transition hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/60 dark:hover:shadow-none hover:border-primary/40">
+  <div class="group relative flex flex-col rounded-2xl bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark transition hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/60 dark:hover:shadow-none hover:border-primary/40">
     <div ref="menuRef">
       <button
         class="absolute top-2.5 right-2.5 z-10 w-8 h-8 inline-flex items-center justify-center rounded-lg bg-white/90 dark:bg-surface-dark/90 backdrop-blur text-slate-500 hover:text-slate-800 dark:hover:text-white opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-40 transition"
@@ -31,11 +31,11 @@
     </div>
 
     <RouterLink :to="`/package/${pkg._id}`" class="flex flex-col flex-1" @click="renaming ? $event.preventDefault() : null">
-      <img v-if="pkg.source?.type === 'youtube' && pkg.source.thumbnail" :src="pkg.source.thumbnail" alt="" class="w-full aspect-video object-cover" />
+      <img v-if="pkg.source?.type === 'youtube' && pkg.source.thumbnail" :src="pkg.source.thumbnail" alt="" class="w-full aspect-video object-cover rounded-t-2xl" />
 
       <div class="flex flex-col flex-1 p-5">
         <div class="flex items-start justify-between gap-2 mb-3">
-          <span class="inline-flex items-center rounded-full bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 truncate max-w-[70%]">
+          <span class="inline-flex items-center rounded-full bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 truncate max-w-[70%]" :title="pkg.metadata?.subject">
             {{ pkg.metadata?.subject || t("packageCard.generalSubject") }}
           </span>
           <span class="text-xs font-mono text-slate-400 whitespace-nowrap pt-1">{{ formatDate(pkg.createdAt) }}</span>

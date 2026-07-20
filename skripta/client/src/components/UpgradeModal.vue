@@ -3,7 +3,7 @@
     <Transition name="fade">
       <div v-if="upgrade.open" class="fixed inset-0 z-[95] flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="upgrade.hide()"></div>
-        <div class="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 sm:p-7 animate-fade-up">
+        <div class="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 sm:p-7 max-h-[90vh] overflow-y-auto animate-fade-up">
           <span class="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-secondary text-white mb-4">
             <SparklesIcon class="w-6 h-6" />
           </span>

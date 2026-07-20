@@ -62,7 +62,8 @@
     <Modal
       :open="confirmRevokeAllOpen"
       :title="t('settings.sessions.revokeAllConfirmTitle')"
-      :confirm-label="t('settings.sessions.revokeAll')"
+      :confirm-label="revokingAll ? t('settings.sessions.revoking') : t('settings.sessions.revokeAll')"
+      :loading="revokingAll"
       @close="confirmRevokeAllOpen = false"
       @confirm="doRevokeAll"
     >
@@ -92,6 +93,7 @@ const loading = ref(false);
 const revokingId = ref(null);
 const revokingOthers = ref(false);
 const confirmRevokeAllOpen = ref(false);
+const revokingAll = ref(false);
 
 function isMobile(session) {
   return /iPhone|iPad|Android|Mobile/i.test(`${session.device || ""} ${session.os || ""}`);
@@ -146,12 +148,15 @@ async function doRevokeOthers() {
 }
 
 async function doRevokeAll() {
-  confirmRevokeAllOpen.value = false;
+  revokingAll.value = true;
   try {
     await api.revokeAllSessions();
   } catch (e) {
     reportApiError(e);
     return;
+  } finally {
+    revokingAll.value = false;
+    confirmRevokeAllOpen.value = false;
   }
   // revoke-all clears this browser's own session too — mirror what
   // logout() does client-side rather than calling api.logout() again

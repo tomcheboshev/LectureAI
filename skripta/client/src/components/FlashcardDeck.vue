@@ -14,13 +14,13 @@
       @click="flipped = !flipped"
     >
       <div class="relative w-full min-h-[240px] transition-transform duration-500 [transform-style:preserve-3d]" :class="flipped ? '[transform:rotateY(180deg)]' : ''">
-        <div class="absolute inset-0 [backface-visibility:hidden] rounded-2xl border-2 border-slate-900 dark:border-white/20 bg-white dark:bg-surface-dark shadow-[4px_4px_0_var(--color-primary)] flex flex-col items-center justify-center p-8 text-center">
+        <div class="absolute inset-0 [backface-visibility:hidden] rounded-2xl border-2 border-slate-900 dark:border-white/20 bg-white dark:bg-surface-dark shadow-[4px_4px_0_var(--color-primary)] flex flex-col items-center justify-center overflow-y-auto p-8 text-center">
           <span class="absolute top-3 left-4 font-mono text-[10px] tracking-widest text-slate-400">{{ t("flashcardDeck.front") }}</span>
           <CheckCircleIcon v-if="learned.has(current.front)" class="absolute top-3 right-4 w-5 h-5 text-success" />
           <p class="text-lg font-medium text-slate-900 dark:text-white" v-html="renderLatexText(current.front)"></p>
           <span class="absolute bottom-3 text-xs text-slate-400">{{ t("flashcardDeck.tapToFlip") }}</span>
         </div>
-        <div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl border-2 border-primary bg-primary/5 dark:bg-primary/10 flex flex-col items-center justify-center p-8 text-center">
+        <div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl border-2 border-primary bg-primary/5 dark:bg-primary/10 flex flex-col items-center justify-center overflow-y-auto p-8 text-center">
           <span class="absolute top-3 left-4 font-mono text-[10px] tracking-widest text-slate-400">{{ t("flashcardDeck.back") }}</span>
           <p class="text-base text-slate-800 dark:text-slate-100" v-html="renderLatexText(current.back)"></p>
         </div>

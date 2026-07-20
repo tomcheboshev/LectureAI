@@ -30,10 +30,11 @@
           <h2 class="font-display font-bold text-sm text-slate-900 dark:text-white mb-3">{{ t("admin.revenue.refunds") }}</h2>
           <p v-if="!stats.refunds.length" class="text-sm text-slate-400 py-4 text-center">{{ t("admin.revenue.refundsEmpty") }}</p>
           <ul v-else class="flex flex-col gap-1.5">
-            <li v-for="r in stats.refunds" :key="r.invoiceId" class="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm">
-              <span class="text-slate-600 dark:text-slate-300 truncate">{{ r.userEmail }}</span>
-              <span class="font-medium text-slate-800 dark:text-slate-100">{{ (r.amountRefunded / 100).toFixed(2) }} {{ r.currency?.toUpperCase() }}</span>
-              <span v-if="r.disputed" class="badge badge-danger">{{ t("admin.revenue.disputed") }}</span>
+            <li v-for="r in stats.refunds" :key="r.invoiceId" class="flex items-center justify-between gap-2 rounded-lg bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm">
+              <RouterLink v-if="r.userId" :to="`/admin/users/${r.userId}`" class="min-w-0 truncate text-primary hover:underline" :title="r.userEmail">{{ r.userEmail }}</RouterLink>
+              <span v-else class="min-w-0 truncate text-slate-600 dark:text-slate-300" :title="r.userEmail">{{ r.userEmail }}</span>
+              <span class="shrink-0 font-medium text-slate-800 dark:text-slate-100">{{ (r.amountRefunded / 100).toFixed(2) }} {{ r.currency?.toUpperCase() }}</span>
+              <span v-if="r.disputed" class="shrink-0 badge badge-danger">{{ t("admin.revenue.disputed") }}</span>
             </li>
           </ul>
         </div>
@@ -42,10 +43,10 @@
           <h2 class="font-display font-bold text-sm text-slate-900 dark:text-white mb-3">{{ t("admin.revenue.cancelledSubscriptions") }}</h2>
           <p v-if="!stats.cancelledSubscriptions.length" class="text-sm text-slate-400 py-4 text-center">{{ t("admin.revenue.cancelledEmpty") }}</p>
           <ul v-else class="flex flex-col gap-1.5">
-            <li v-for="u in stats.cancelledSubscriptions" :key="u._id" class="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm">
-              <span class="text-slate-600 dark:text-slate-300 truncate">{{ u.email }}</span>
-              <span v-if="u.cancelAtPeriodEnd && u.subscriptionStatus !== 'canceled'" class="badge badge-warning">{{ t("admin.revenue.scheduledToCancel") }}</span>
-              <span v-else class="badge">{{ u.subscriptionStatus }}</span>
+            <li v-for="u in stats.cancelledSubscriptions" :key="u._id" class="flex items-center justify-between gap-2 rounded-lg bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm">
+              <RouterLink :to="`/admin/users/${u._id}`" class="min-w-0 truncate text-primary hover:underline" :title="u.email">{{ u.email }}</RouterLink>
+              <span v-if="u.cancelAtPeriodEnd && u.subscriptionStatus !== 'canceled'" class="shrink-0 badge badge-warning">{{ t("admin.revenue.scheduledToCancel") }}</span>
+              <span v-else class="shrink-0 badge">{{ u.subscriptionStatus }}</span>
             </li>
           </ul>
         </div>
@@ -56,9 +57,9 @@
         <p class="text-xs text-slate-400 mb-3">{{ t("admin.revenue.studentDiscountsActive", { count: stats.studentDiscounts.activeCount }) }}</p>
         <p v-if="!stats.studentDiscounts.users.length" class="text-sm text-slate-400 py-4 text-center">{{ t("admin.revenue.studentDiscountsEmpty") }}</p>
         <ul v-else class="flex flex-col gap-1.5">
-          <li v-for="u in stats.studentDiscounts.users" :key="u._id" class="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm">
-            <span class="text-slate-600 dark:text-slate-300 truncate">{{ u.email }}</span>
-            <span class="badge" :class="u.subscriptionStatus === 'active' || u.subscriptionStatus === 'trialing' ? 'badge-success' : ''">{{ u.subscriptionStatus }}</span>
+          <li v-for="u in stats.studentDiscounts.users" :key="u._id" class="flex items-center justify-between gap-2 rounded-lg bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm">
+            <RouterLink :to="`/admin/users/${u._id}`" class="min-w-0 truncate text-primary hover:underline" :title="u.email">{{ u.email }}</RouterLink>
+            <span class="shrink-0 badge" :class="u.subscriptionStatus === 'active' || u.subscriptionStatus === 'trialing' ? 'badge-success' : ''">{{ u.subscriptionStatus }}</span>
           </li>
         </ul>
       </div>
@@ -68,6 +69,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
+import { RouterLink } from "vue-router";
 import { CurrencyDollarIcon, CalendarDaysIcon, CalendarIcon, ChartBarIcon, ArrowTrendingDownIcon, UserGroupIcon } from "@heroicons/vue/24/outline";
 import { adminApi } from "../../services/adminApi.js";
 import { useI18n } from "../../composables/useI18n.js";

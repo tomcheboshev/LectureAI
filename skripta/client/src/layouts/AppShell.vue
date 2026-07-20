@@ -42,8 +42,8 @@
             <span class="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary text-white text-xs font-bold shrink-0">
               {{ initials }}
             </span>
-            <span class="hidden md:flex flex-col items-start leading-tight">
-              <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ auth.user?.name }}</span>
+            <span class="hidden md:flex flex-col items-start leading-tight max-w-[140px] min-w-0">
+              <span class="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate max-w-full" :title="auth.user?.name">{{ auth.user?.name }}</span>
               <span class="text-[11px] font-mono uppercase text-slate-400">{{ auth.user?.plan }}</span>
             </span>
           </button>

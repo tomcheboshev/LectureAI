@@ -20,24 +20,26 @@
 
       <div class="rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark p-6">
         <h2 class="font-display font-bold text-sm text-slate-900 dark:text-white mb-4">{{ t("admin.aiUsage.byModel") }}</h2>
+        <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             <tr>
-              <th class="py-2">{{ t("admin.aiUsage.model") }}</th>
-              <th class="py-2">{{ t("admin.aiUsage.totalCalls") }}</th>
-              <th class="py-2">{{ t("admin.aiUsage.totalTokens") }}</th>
-              <th class="py-2">{{ t("admin.aiUsage.totalCost") }}</th>
+              <th class="py-2 whitespace-nowrap">{{ t("admin.aiUsage.model") }}</th>
+              <th class="py-2 whitespace-nowrap">{{ t("admin.aiUsage.totalCalls") }}</th>
+              <th class="py-2 whitespace-nowrap">{{ t("admin.aiUsage.totalTokens") }}</th>
+              <th class="py-2 whitespace-nowrap">{{ t("admin.aiUsage.totalCost") }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-border-dark">
             <tr v-for="m in stats.byModel" :key="m.model">
-              <td class="py-2 font-medium text-slate-900 dark:text-white">{{ m.model }}</td>
-              <td class="py-2 text-slate-500 dark:text-slate-400">{{ m.calls }}</td>
-              <td class="py-2 text-slate-500 dark:text-slate-400">{{ formatNumber(m.tokens) }}</td>
-              <td class="py-2 text-slate-500 dark:text-slate-400">${{ m.costUsd.toFixed(3) }}</td>
+              <td class="py-2 pr-4 font-medium text-slate-900 dark:text-white whitespace-nowrap" :title="m.model">{{ m.model }}</td>
+              <td class="py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ m.calls }}</td>
+              <td class="py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ formatNumber(m.tokens) }}</td>
+              <td class="py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">${{ m.costUsd.toFixed(3) }}</td>
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </template>
   </div>

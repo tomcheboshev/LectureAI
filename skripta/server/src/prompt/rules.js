@@ -25,7 +25,7 @@ export const STUDY_NOTES_RULES = `### STUDY NOTES
 Distill the course into exam-oriented notes distinct from "summary" (which teaches; these compress). \`main_ideas\`/\`important_details\` capture what a last-minute review pass needs; \`formulas_or_rules\` and \`processes_or_steps\` are terse operational restatements (cross-reference the full explanation in \`summary\`/\`core_concepts\` by name rather than re-deriving it); \`comparisons\` should be genuinely high-contrast pairs a student would actually confuse; \`common_misunderstandings\` are real, specific traps, not generic "be careful"; \`exam_focus\` names the highest-probability assessment vectors given the material's depth and emphasis.`;
 
 export const CORE_CONCEPTS_RULES = `### CORE CONCEPTS
-Each entry is the precise, canonical reference definition for one term — the place a student re-reads when they've forgotten exactly what something means. \`definition\` states the precise meaning then the one distinction students most often get wrong about it. \`why_it_matters\` explains the concept's structural role in the broader subject, not just a restatement of the definition. \`common_mistakes\` names a real exam trap or cognitive slip, not a vague warning.`;
+Each entry is the precise, canonical reference definition for one term — the place a student re-reads when they've forgotten exactly what something means. \`definition\` states the precise meaning then the one distinction students most often get wrong about it. \`why_it_matters\` explains the concept's structural role in the broader subject, not just a restatement of the definition. \`common_mistakes\` names a real exam trap or cognitive slip, not a vague warning. \`memory_trick\` is a genuinely vivid mnemonic/acronym/mental image specific to this term — \`null\` if nothing authentic fits, never a forced generic one.`;
 
 export const QUIZ_RULES = `### QUIZ
 Every question must target conceptual understanding, an edge case, or analysis — never simple keyword matching. Every distractor must stem from a real, specific student misconception (see the worked example below for the bar this must clear); a distractor that's obviously wrong or unrelated to the concept is a failed question. \`correctAnswer\` must match one of the \`options\` strings exactly, character for character.`;
@@ -38,7 +38,43 @@ export const FORMULA_RULES = `### FORMULAS — STEP-BY-STEP REQUIREMENT
 For every formula, \`example\` MUST be a fully worked, step-by-step numeric (or symbolic, if the domain has no numeric instance) computation using the formula — show each substitution and intermediate step, not just the final answer. \`when_to_use\` states the actual trigger condition for reaching for this formula over a related one, not a generic "when needed." A formula field with only a final answer and no derivation shown fails this requirement.`;
 
 export const DIAGRAM_RULES = `### DIAGRAMS & VISUALIZATIONS
-When the material covers Theoretical Computer Science or systems architecture (DFA, NFA, PDA, Turing Machines, network topologies, database schemas, or any other inherently graph-shaped structure), you MUST provide a visual representation: embed fully valid **Mermaid.js diagram syntax** (wrapped in \`\`\`mermaid) inside "diagrams_or_tables_explained" so the frontend can render an interactive diagram, in addition to a markdown transition table when the structure has one. Reserve Mermaid for genuinely graph/state-shaped content — for ordinary tabular or comparison data, a GitHub-flavored Markdown table is clearer and should be used instead.`;
+When a diagram would genuinely help a student understand THIS chapter's structure — automata (DFA/NFA/PDA/Turing machines), trees and binary trees, graph traversals (DFS/BFS), linked lists, network topologies, memory layouts, CPU/cache hierarchies, compiler pipelines, database schemas/ER relationships, state machines, UML class diagrams, sequence diagrams, or system/software architecture — embed fully valid **Mermaid.js diagram syntax** (wrapped in \`\`\`mermaid) inside "diagrams_or_tables_explained", picking the Mermaid diagram type that actually fits (\`graph\`/\`flowchart\` for trees/graphs/architecture/pipelines, \`stateDiagram-v2\` for automata/state machines, \`classDiagram\` for UML, \`sequenceDiagram\` for sequence diagrams, \`erDiagram\` for database relationships), in addition to a markdown transition table when the structure has one. Never force a diagram onto content with no real graph/state/structural shape (e.g. a history, literature, or business-theory chapter) — a meaningless diagram is worse than no diagram. For ordinary tabular or comparison data with no structural shape, use a GitHub-flavored Markdown table instead.`;
+
+// Runs first, silently, before any content is written. Downstream rules
+// (CODE_PLAYGROUND_RULE, ADAPTIVE_PRACTICE_RULE, DIAGRAM_RULES) all key off
+// this same classification, but since TEACHING and ASSESSMENT run as two
+// INDEPENDENT parallel calls (see fullGeneration.js/chunkedGeneration.js),
+// there's no shared state between them — each prompt that needs the
+// classification re-derives it itself from the same source material rather
+// than depending on the other call's output, so no extra round-trip is
+// needed and both calls stay in sync in practice.
+export const MATERIAL_CLASSIFICATION_RULE = `### MATERIAL CLASSIFICATION (decide this first, silently, before writing anything else)
+Determine which ONE category best describes this material: Programming, Computer Science Theory, Mathematics, Physics, Chemistry, Biology, English, History, Business, Economics, Law, Medicine, or Other. Set \`metadata.material_category\` to this exact category string. This decision then governs every downstream call in this response — which chapters get a \`code_examples\` entry, which diagrams genuinely apply, and how much domain-specific enrichment to add. When a course spans two areas, pick whichever one determines the material's actual graded skill (e.g. a database course with some math in it is "Programming" or "Computer Science Theory", not "Mathematics").`;
+
+// Governs the chapter-level code_examples array (schema.js CHAPTER_CORE_FIELDS)
+// — used only by prompts that produce chapters (TEACHING full + chunk).
+export const CODE_PLAYGROUND_RULE = `### CODE EXAMPLES (interactive playground data — programming/CS material ONLY)
+Populate a chapter's \`code_examples\` array ONLY when the material is genuinely Programming or Computer Science Theory AND this specific chapter walks through real source code (a snippet, algorithm implementation, or query actually present in the material). For every other subject (History, Biology, English, Economics, Law, Medicine, ...) — or a programming chapter that's purely conceptual with nothing to walk through — \`code_examples\` MUST be an empty array. Never invent a code example that isn't grounded in the source material; never force one onto non-programming content.
+When you DO populate an entry:
+* \`language\`: the real language of the snippet (python, java, c, cpp, javascript, csharp, sql, html, ...).
+* \`code\`: the exact or lightly-cleaned snippet from the material, properly indented.
+* \`line_explanations\`: 3-8 entries, each a short quoted line/statement from \`code\` paired with what it does and why — enough that a student could reconstruct the snippet's logic from these alone.
+* \`common_mistakes\`: 0-3 specific mistakes students make with THIS exact snippet or pattern (off-by-one, wrong base case, mutating while iterating, ...) — empty array if none genuinely apply.
+* \`time_complexity\` / \`space_complexity\`: Big-O in LaTeX (e.g. \`$O(n \\\\log n)$\`) with a one-clause reason, or \`null\` if complexity analysis doesn't meaningfully apply (e.g. a plain SQL query or an HTML snippet).
+* \`alternative_solution\`: a genuinely different approach with a one-line tradeoff comparison, or \`null\` if there's no meaningfully different way to solve it.
+* \`expected_output\`: exactly what running this code prints or returns, or \`null\` if it has no observable output.`;
+
+// Governs quiz/flashcards/practice_tasks STYLE — used only by prompts that
+// produce the ASSESSMENT half (full + synthesis). Re-derives its own
+// classification (see comment above) rather than reading metadata, since
+// this call never sees the TEACHING half's output.
+export const ADAPTIVE_PRACTICE_RULE = `### SUBJECT-ADAPTIVE PRACTICE (decide first, silently, from the material itself)
+Determine which ONE category this material belongs to: Programming, Computer Science Theory, Mathematics, Physics, Chemistry, Biology, English, History, Business, Economics, Law, Medicine, or Other. Let that determine the STYLE of every exercise you write — never default to generic multiple-choice trivia regardless of subject:
+* **Programming / CS Theory:** \`practice_tasks\` should be dominated by "debug this code" (a snippet with a planted bug to find), "predict the output", "complete the missing code", and complexity-analysis questions — not just prose problems.
+* **Mathematics / Physics / Chemistry:** \`practice_tasks\` should be equations/numeric problems solved with a full step-by-step derivation in \`solution\`, mirroring the exact problem types the material itself demonstrates.
+* **English / language courses:** favor grammar correction, vocabulary-in-context, translation, and sentence-correction style items over abstract conceptual questions.
+* **History / Business / Economics / Law / Medicine / other theory-heavy subjects:** favor multiple-choice, true/false, matching, and short-answer items testing conceptual precision, causation, and application of a rule/principle to a new scenario.
+Never generate coding or algorithmic exercises for a non-programming subject, and never generate equation-solving exercises for a subject with no mathematical content — every exercise in this response must feel native to the actual subject, never templated in from an unrelated domain. This applies to \`quiz\`, \`flashcards\`, and \`practice_tasks\` alike.`;
 
 // --- Formatting rules (full + compact variants) ------------------------------
 //
@@ -74,7 +110,15 @@ Anywhere you're writing more than a sentence or two (chapter \`description\`, \`
 * \`**bold**\` the specific term, number, or phrase a student should remember — not whole sentences.
 * Use \`##\`/\`###\` sub-headings inside a long \`description\` if it naturally covers more than one sub-topic (e.g. "Mechanics" then "Complexity Analysis").
 * Use \`- \` bullet lists for enumerable points, GitHub-flavored Markdown pipe tables (\`| Header | Header |\` with a \`|---|---|\` separator row) for any tabular/comparison data — never describe a table in prose when a real table is clearer.
-* Use a fenced callout block for anything that deserves visual separation from the main narrative — a fenced code block whose language tag is one of \`concept\`, \`example\`, \`tip\`, or \`warning\` (e.g. \`\`\`tip\\nSome tip text\\n\`\`\`). Use \`concept\` for a key idea worth flagging, \`example\` for a worked mini-example embedded in prose, \`tip\` for a study/mnemonic aid, \`warning\` for a common mistake or misconception. Use these sparingly — 0-2 per chapter — as emphasis, not as a container for the whole chapter.
+* Use a fenced callout block for anything that deserves visual separation from the main narrative — a fenced code block whose language tag is one of the 7 below (e.g. \`\`\`tip\\nSome tip text\\n\`\`\`). Each renders in a distinct color, so use the one that actually matches the content:
+  - \`definition\` (blue) — a precise term definition worth visually isolating from the surrounding prose.
+  - \`concept\` (green) — a key idea or principle worth flagging as especially important.
+  - \`example\` (purple) — a worked mini-example embedded in prose.
+  - \`mistake\` (red) — a common student error or misconception, distinct from a \`warning\`.
+  - \`warning\` (orange) — a caution about a limitation, edge case, or something easy to get wrong operationally.
+  - \`tip\` (amber) — a study technique or mnemonic aid.
+  - \`info\` (gray) — supplementary context that's useful but not core material.
+  Use these sparingly — 0-3 per chapter — as emphasis, not as a container for the whole chapter. Prefer the dedicated per-chapter fields (\`common_mistakes\`, \`exam_tip\`, \`memory_trick\`) for those specific purposes; reserve inline callouts for a point that arises naturally mid-explanation and doesn't fit those fields.
 * Do NOT use raw HTML, and do not use headings deeper than \`###\`.`;
 
 // Used only where an "AVAILABLE IMAGES" manifest can be attached (full and
@@ -89,7 +133,7 @@ export const LATEX_RULES_COMPACT = `### LATEX FORMAT
 Wrap ALL math/logic/set-theory/complexity notation in \`$inline$\` or \`$$display$$\` — everywhere text appears (key points, algorithm steps, examples, not just a "formula" field), never as bare backslash text. Never use \`\\(...\\)\`/\`\\[...\\]\`, never wrap a plain currency amount in \`$\`. Use real LaTeX commands (\`\\frac\`, \`\\sqrt\`, \`\\sum\`, \`\\dots\`, \`\\in\`, \`\\forall\`, \`\\rightarrow\`, \`\\mid\`, etc.), never a Unicode symbol substitute. **CRITICAL JSON ESCAPE RULE:** every backslash in a LaTeX command MUST be double-escaped (\`\\\\\`) inside the JSON string.`;
 
 export const MARKDOWN_RULES_COMPACT = `### RICH FORMATTING
-The frontend renders real Markdown in long-form fields — use \`**bold**\` for the specific term/number to remember, \`- \` bullets and GitHub-flavored Markdown tables for tabular data, and (sparingly, 0-2 per chapter) a fenced \`\`\`concept/\`\`\`example/\`\`\`tip/\`\`\`warning callout block for anything deserving visual separation. No raw HTML, no headings deeper than \`###\`.`;
+The frontend renders real Markdown in long-form fields — use \`**bold**\` for the specific term/number to remember, \`- \` bullets and GitHub-flavored Markdown tables for tabular data, and (sparingly, 0-3 per chapter) a fenced callout block for anything deserving visual separation: \`\`\`definition\`\`\` (blue), \`\`\`concept\`\`\` (green), \`\`\`example\`\`\` (purple), \`\`\`mistake\`\`\` (red), \`\`\`warning\`\`\` (orange), \`\`\`tip\`\`\` (amber), \`\`\`info\`\`\` (gray) — pick the one that actually matches the content. No raw HTML, no headings deeper than \`###\`.`;
 
 export const IMAGE_RULES_COMPACT = `### EMBEDDED IMAGES
 Each image in the AVAILABLE IMAGES manifest (when present) is attached as inline image data — actually look at it. Reference ONLY genuinely educational visuals (diagrams, charts, architecture/scientific figures, informative screenshots) in the relevant chapter's "images" array, using the id exactly as given. NEVER reference a formula-as-image (transcribe as LaTeX instead), memes, logos, icons, or decorative images — if unsure, leave it out.`;
@@ -103,6 +147,15 @@ export const ACTIVE_LEARNING_RULE = `**Active Learning & Scaffolding:** Structur
 export const DEEP_COMPREHENSION_RULE = `**Deep Comprehension over Rote Memorization:** Quiz questions, true/false items, and practice tasks must target conceptual understanding, edge cases, and analysis rather than simple recall (see the QUIZ and FLASHCARDS rules above for specifics). **Difficulty distribution:** across the full \`quiz\` array, and separately across the full \`practice_tasks\` array, aim for roughly 30% easy / 40% medium / 30% hard — do not label every item "medium". Use this rubric: **easy** = single-fact recall or a direct definition; **medium** = applying one formula/rule or connecting two concepts; **hard** = multi-step reasoning, an edge case, or synthesizing several concepts together.`;
 
 export const CHAPTER_LENGTH_RULE = `**Chapter length calibration (textbook depth, not summary depth):** \`description\` (per chapter) is 200-450 words of genuine multi-paragraph teaching prose — enough room to actually move through intuition, formal mechanics, and how it connects to a concrete example, not a single compressed paragraph gesturing at the topic. If a chapter feels thin at 200 words, that is a signal the chapter's scope is too broad — split it into two chapters rather than writing a thin one. Do not pad any field with filler, throat-clearing, or restated question text to hit these numbers.`;
+
+// The "premium study notes" fields (key_idea/easy_explanation/advanced_explanation/
+// real_world_analogy/memory_trick/common_mistakes/exam_tip on every chapter) are
+// what separates this from a plain AI summary — but each is deliberately short
+// (one sentence to a few), so the added richness doesn't blow up output size or
+// generation time. Nullable fields (advanced_explanation/real_world_analogy/
+// memory_trick/exam_tip) should still be filled in whenever a genuine one
+// exists — leave null only when nothing authentic fits, never as a shortcut.
+export const PREMIUM_ENRICHMENT_RULE = `**Premium enrichment fields (every chapter):** \`key_idea\` is the one sentence a student should remember even if they forget everything else — make it punchy and specific, not a generic restatement of the title. \`easy_explanation\` uses zero jargon, as if explaining to a smart friend outside the field. \`advanced_explanation\` adds real depth (an edge case, a connection to more advanced material) beyond \`description\` — not a rephrasing of it. \`real_world_analogy\` and \`memory_trick\` should be genuinely vivid and specific to this exact content, never generic ("it's like a system that organizes things") — write \`null\` rather than force a weak one. \`common_mistakes\` names real, specific traps (0-3 items, empty array if none apply) — not vague cautions. \`exam_tip\` names an actual testable pattern for this topic, or \`null\` if this material isn't typically assessed directly.`;
 
 export const CONTENT_LENGTH_RULE = `**Content length calibration:** \`definition\` (core concept) is 2-4 sentences: the precise definition, then the one distinction students most often get wrong. \`explanation\` (quiz/true-false) is 3-5 sentences and must say why the correct answer is right AND why the main distractor(s) are wrong. \`solution\` (practice task) is as long as the derivation genuinely requires, fully worked, not truncated for brevity. Do not pad any field with filler to hit these numbers.`;
 

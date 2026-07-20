@@ -703,6 +703,10 @@ export default {
     deleteModal: {
       title: "Го бришете овој студиски пакет?",
     },
+    emptySection: {
+      title: "Сè уште нема содржина",
+      description: "Оваа секција нема содржина. Обидете се повторно да ја генерирате.",
+    },
     tabs: {
       summary: "Резиме",
       concepts: "Клучни поими",
@@ -714,6 +718,7 @@ export default {
       truefalse: "Точно / Неточно",
       shortanswer: "Краток одговор",
       path: "Патека за учење",
+      examprep: "Подготовка за испит",
       chat: "AI Тутор",
     },
     summary: {
@@ -724,6 +729,34 @@ export default {
     formulas: {
       whenToUse: "Кога да се користи:",
       example: "Пример:",
+    },
+    chapter: {
+      keyIdea: "Клучна идеја",
+      easyExplanation: "Едноставно објаснување",
+      advancedExplanation: "Напредно објаснување",
+      realWorldAnalogy: "Аналогија од реалниот живот",
+      memoryTrick: "Запомнете го ова",
+      commonMistakes: "Чести грешки",
+      examTip: "Совет за испит",
+    },
+    codeExample: {
+      copy: "Копирај",
+      copied: "Копирано",
+      edit: "Уреди",
+      done: "Готово",
+      run: "Изврши",
+      running: "Извршување…",
+      output: "Излез",
+      explainLines: "Објасни линија по линија",
+      alternativeSolution: "Алтернативно решение",
+      expectedOutput: "Прикажи очекуван излез",
+      timeout: "Запрено: извршувањето трае предолго.",
+      noOutput: "(нема излез)",
+    },
+    examPrep: {
+      checklistTitle: "Листа за последна ревизија",
+      checklistSubtitle: "Најважните точки за испитот од сите поглавја — обележете ги додека ги повторувате.",
+      formulaSheetTitle: "Лист со формули",
     },
     concepts: {
       whyItMatters: "Зошто е важно:",
@@ -827,6 +860,8 @@ export default {
     },
   },
   trueFalseQuiz: {
+    emptyTitle: "Сè уште нема прашања точно/неточно",
+    emptyDescription: "Овој сет нема прашања точно/неточно. Обидете се повторно да ја генерирате оваа секција.",
     true: "Точно",
     false: "Неточно",
     correct: "Точно",

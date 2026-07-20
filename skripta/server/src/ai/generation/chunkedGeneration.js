@@ -16,7 +16,8 @@ import {
   suggestedCounts,
   buildSummaryChunkSystemPrompt,
   buildSummaryChunkUserMessage,
-  buildSynthesisSystemPrompt,
+  buildTeachingSynthesisSystemPrompt,
+  buildAssessmentSynthesisSystemPrompt,
   buildSynthesisUserMessage,
   buildDistilledSummaryText,
 } from "../../prompt/index.js";
@@ -25,6 +26,7 @@ import { isNonEmptyString, sanitizeChapterImages, sanitizeChapterFormulas } from
 import { validateSections } from "../pipeline/packageValidator.js";
 import { recoverInvalidSections } from "../pipeline/recoveryManager.js";
 import { CHARS_PER_TOKEN, CHUNK_MAX_INPUT_TOKENS, CHUNK_MAX_CHARS, IMAGE_TOKEN_ESTIMATE, MAX_CHUNK_ATTEMPTS, CHUNK_CONCURRENCY, splitTextIntoChunks } from "../pipeline/chunking.js";
+import { runWithConcurrency } from "../pipeline/concurrency.js";
 import { callAi, buildMessages, MAX_OUTPUT_TOKENS, CALL_TIMEOUT_MS, isTruncated, sleep } from "./callAi.js";
 import { logAiUsage } from "../usageLogger.js";
 
@@ -106,39 +108,40 @@ async function generateChunkChapters(source, chunkText, label, ctx, chunkImages,
   throw lastErr;
 }
 
-async function generateSynthesisWithRetry({ video_title, subject, difficulty, distilledSummary, counts }, ctx) {
+// One half (teaching or assessment) of the synthesis step, with its own
+// retry loop — same salvage-first philosophy as generateChunkChapters:
+// jsonrepair can often recover a partial object (e.g. quiz intact,
+// flashcards array truncated) by dropping only the incomplete trailing
+// entry, and the soft validator downstream already tolerates missing/
+// malformed sections gracefully (and recovers them), so a partial result is
+// still worth using rather than discarding outright.
+async function generateSynthesisHalf(half, systemPrompt, { video_title, subject, difficulty, distilledSummary, counts }, ctx) {
   let lastErr;
   for (let attempt = 1; attempt <= MAX_CHUNK_ATTEMPTS; attempt++) {
     try {
       const response = await callAi({
-        system: buildSynthesisSystemPrompt(),
+        system: systemPrompt,
         messages: [{ role: "user", text: buildSynthesisUserMessage({ video_title, subject, difficulty, distilledSummary, counts }) }],
-        maxTokens: MAX_OUTPUT_TOKENS.synthesis,
-        timeoutMs: CALL_TIMEOUT_MS.synthesis,
-        label: "study package synthesis",
+        maxTokens: MAX_OUTPUT_TOKENS[half],
+        timeoutMs: CALL_TIMEOUT_MS[half],
+        label: `study package synthesis (${half})`,
         json: true,
       });
       console.log(
-        `[synthesis] model=${response.model} attempt=${attempt}/${MAX_CHUNK_ATTEMPTS} promptChars=${distilledSummary.length} responseChars=${response.text.length} finishReason=${response.finishReason} durationMs=${response.durationMs}`
+        `[synthesis:${half}] model=${response.model} attempt=${attempt}/${MAX_CHUNK_ATTEMPTS} promptChars=${distilledSummary.length} responseChars=${response.text.length} finishReason=${response.finishReason} durationMs=${response.durationMs}`
       );
       logAiUsage(response, { ...ctx, kind: "generate_synthesis" });
 
-      // Same salvage-first philosophy as generateChunkChapters: jsonrepair
-      // can often recover a partial object (e.g. quiz intact, flashcards
-      // array truncated) by dropping only the incomplete trailing entry —
-      // the soft validator downstream already tolerates missing/malformed
-      // sections gracefully (and recovers them), so a partial synthesis
-      // result is still worth using rather than discarding outright.
       try {
         return extractJson(response.text);
       } catch (parseErr) {
-        throw Object.assign(new Error(`synthesis: ${isTruncated(response) ? "truncated and unparseable" : `invalid JSON (${parseErr.message})`}`), {
+        throw Object.assign(new Error(`synthesis (${half}): ${isTruncated(response) ? "truncated and unparseable" : `invalid JSON (${parseErr.message})`}`), {
           truncated: isTruncated(response),
         });
       }
     } catch (err) {
       lastErr = err;
-      console.warn(`[synthesis] attempt ${attempt}/${MAX_CHUNK_ATTEMPTS} failed: ${err.message}`);
+      console.warn(`[synthesis:${half}] attempt ${attempt}/${MAX_CHUNK_ATTEMPTS} failed: ${err.message}`);
       if (err.permanent) break;
       if (attempt < MAX_CHUNK_ATTEMPTS) await sleep(2000 * 2 ** (attempt - 1));
     }
@@ -146,30 +149,39 @@ async function generateSynthesisWithRetry({ video_title, subject, difficulty, di
   throw lastErr;
 }
 
-// Runs `worker(item, index)` over `items` with at most `limit` concurrently
-// in flight — plain Promise.all would fire every source's summary call at
-// once, which for a large multi-file upload is a fast way to blow through
-// the API key's per-minute rate limit before any of them finish.
-// `abortState` (when given) is checked before starting each new item —
-// once one item signals a genuine quota exhaustion, every item not yet
-// started is skipped immediately instead of independently making (and
-// failing) its own call against an account already known to be out of
-// quota.
-async function runWithConcurrency(items, limit, worker, abortState) {
-  const results = new Array(items.length);
-  let next = 0;
-  async function run() {
-    while (next < items.length) {
-      const i = next++;
-      if (abortState?.stopped) {
-        results[i] = await worker(items[i], i, true);
-        continue;
-      }
-      results[i] = await worker(items[i], i, false);
-    }
+// SPEED: fires the TEACHING half (core_concepts/study_notes/chatbot_context)
+// and ASSESSMENT half (quiz/flashcards/practice/etc.) as two INDEPENDENT
+// calls instead of one call producing everything serially — wall-clock time
+// is roughly the slower of the two instead of the sum of both. Both halves
+// work from the same compact distilled summary, so neither needs the raw
+// per-source text or images.
+//
+// Promise.allSettled (not Promise.all): if one half fails after every
+// retry, the other half's real content is still kept rather than thrown
+// away — the missing half's sections simply come back empty, which
+// packageValidator flags and recoveryManager then repairs one section at a
+// time, the same soft-recovery path used for every other failure mode in
+// this pipeline. Only if BOTH halves fail does this call fail outright.
+async function generateSynthesisWithRetry(args, ctx) {
+  const [teachingResult, assessmentResult] = await Promise.allSettled([
+    generateSynthesisHalf("teaching", buildTeachingSynthesisSystemPrompt(), args, ctx),
+    generateSynthesisHalf("assessment", buildAssessmentSynthesisSystemPrompt(), args, ctx),
+  ]);
+
+  if (teachingResult.status === "rejected" && assessmentResult.status === "rejected") {
+    throw teachingResult.reason;
   }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
-  return results;
+  if (teachingResult.status === "rejected") {
+    console.warn(`[synthesis] teaching half failed after every attempt (assessment succeeded) — continuing with assessment only: ${teachingResult.reason.message}`);
+  }
+  if (assessmentResult.status === "rejected") {
+    console.warn(`[synthesis] assessment half failed after every attempt (teaching succeeded) — continuing with teaching only: ${assessmentResult.reason.message}`);
+  }
+
+  return {
+    ...(teachingResult.status === "fulfilled" ? teachingResult.value : {}),
+    ...(assessmentResult.status === "fulfilled" ? assessmentResult.value : {}),
+  };
 }
 
 /**
@@ -222,25 +234,19 @@ export async function generateStudyPackageChunked({ sources, video_title, subjec
   // its own attempts against an account already known to be out of quota.
   const abortState = { stopped: false, reason: null };
 
-  const results = await runWithConcurrency(
-    workItems,
-    CHUNK_CONCURRENCY,
-    async (item, _index, alreadyAborted) => {
-      const label = item.chunkCount > 1 ? `"${item.source.filename}" (part ${item.chunkIndex + 1}/${item.chunkCount})` : `"${item.source.filename}"`;
-      if (alreadyAborted) {
-        console.warn(`[chunked-generation] Skipping ${label} — generation already aborted (${abortState.reason}).`);
-        return { ok: false, source: item.source, error: abortState.reason, aborted: true };
-      }
-      try {
-        const r = await generateChunkChapters(item.source, item.text, label, { ...ctx, video_title, subject }, item.images, abortState);
-        return { ok: true, source: item.source, ...r };
-      } catch (err) {
-        console.warn(`[chunked-generation] Giving up on ${label} — every recovery attempt failed:`, err.message);
-        return { ok: false, source: item.source, error: err.message, aborted: Boolean(err.quotaExhausted) };
-      }
-    },
-    abortState
-  );
+  const results = await runWithConcurrency(workItems, CHUNK_CONCURRENCY, async (item) => {
+    const label = item.chunkCount > 1 ? `"${item.source.filename}" (part ${item.chunkIndex + 1}/${item.chunkCount})` : `"${item.source.filename}"`;
+    try {
+      // generateChunkChapters itself checks abortState.stopped first thing
+      // and throws immediately if another chunk already hit a genuine quota
+      // exhaustion — no separate "already aborted" fast path needed here.
+      const r = await generateChunkChapters(item.source, item.text, label, { ...ctx, video_title, subject }, item.images, abortState);
+      return { ok: true, source: item.source, ...r };
+    } catch (err) {
+      console.warn(`[chunked-generation] Giving up on ${label} — every recovery attempt failed:`, err.message);
+      return { ok: false, source: item.source, error: err.message, aborted: Boolean(err.quotaExhausted || err.aborted) };
+    }
+  });
 
   // A quota exhaustion overrides everything else below — per the product
   // requirement, stop immediately and report the clear, user-facing quota

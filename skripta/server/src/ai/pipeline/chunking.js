@@ -37,7 +37,11 @@ export const MAX_CHUNK_ATTEMPTS = Number(process.env.AI_CHUNK_MAX_RETRIES) || 2;
 // would raise this value and add the recursion in generateChunkChapters.
 export const AI_CHUNK_MAX_SPLIT_DEPTH = 0;
 
-export const CHUNK_CONCURRENCY = 2;
+// SPEED: raised from 2 — more chunk-summary calls in flight at once directly
+// cuts wall-clock time for multi-source/large-source uploads. Bounded (not
+// unbounded) so a huge multi-file upload doesn't fire dozens of calls at
+// once and blow through the rate limiter's RPM/TPM budget before any finish.
+export const CHUNK_CONCURRENCY = 3;
 
 // Splits `text` into pieces no larger than `maxChars`, breaking at
 // paragraph boundaries where possible (never mid-sentence unless a single

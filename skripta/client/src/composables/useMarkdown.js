@@ -47,7 +47,7 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;");
 }
 
-function highlightCode(lang, code) {
+export function highlightCode(lang, code) {
   try {
     if (lang && hljs.getLanguage(lang)) {
       return { html: hljs.highlight(code, { language: lang }).value, lang };
@@ -59,16 +59,22 @@ function highlightCode(lang, code) {
   }
 }
 
-// Callout box types the AI is instructed (see prompt.js) to use for
-// concept/example/tip/warning asides, expressed as fenced code blocks with
-// one of these as the "language" tag (e.g. ```tip ... ```) — a syntax
-// models reliably produce, and one that degrades gracefully to a plain code
-// block if a renderer that doesn't know about it ever sees it.
+// Callout box types the AI is instructed (see prompt/rules.js) to use for
+// definition/concept/example/mistake/warning/tip/info asides, expressed as
+// fenced code blocks with one of these as the "language" tag (e.g.
+// ```tip ... ```) — a syntax models reliably produce, and one that degrades
+// gracefully to a plain code block if a renderer that doesn't know about it
+// ever sees it. Colors (applied in style.css) follow one consistent
+// convention across the whole app: blue=definitions, green=concepts,
+// purple=examples, red=mistakes, orange=warnings, amber=tips, gray=info.
 const CALLOUT_TYPES = {
+  definition: { emoji: "📘", labelKey: "definition" },
   concept: { emoji: "💡", labelKey: "concept" },
-  example: { emoji: "✅", labelKey: "example" },
-  tip: { emoji: "✨", labelKey: "tip" },
+  example: { emoji: "🧩", labelKey: "example" },
+  mistake: { emoji: "❌", labelKey: "mistake" },
   warning: { emoji: "⚠️", labelKey: "warning" },
+  tip: { emoji: "✨", labelKey: "tip" },
+  info: { emoji: "ℹ️", labelKey: "info" },
 };
 
 function renderCallout(type, body) {
@@ -77,7 +83,8 @@ function renderCallout(type, body) {
     .split(/\n{2,}/)
     .map((p) => `<p>${renderInline(p.trim()).replace(/\n/g, "<br>")}</p>`)
     .join("");
-  return `<div class="callout callout-${type}"><div class="callout-icon">${meta.emoji}</div><div class="callout-body">${inlineBody}</div></div>`;
+  const label = meta.labelKey.charAt(0).toUpperCase() + meta.labelKey.slice(1);
+  return `<div class="callout callout-${type}"><div class="callout-icon">${meta.emoji}</div><div class="callout-body"><span class="callout-label">${label}</span>${inlineBody}</div></div>`;
 }
 
 // GFM pipe tables aren't blank-line-delimited like other blocks (rows are

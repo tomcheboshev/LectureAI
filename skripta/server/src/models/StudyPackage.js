@@ -28,6 +28,7 @@ const StudyPackageSchema = new Schema(
     metadata: {
       video_title: { type: String, default: "Generating…", index: true },
       subject: { type: String, index: true },
+      material_category: { type: String, index: true },
       estimated_level: String,
       estimated_duration_minutes: Number,
       content_type: String,

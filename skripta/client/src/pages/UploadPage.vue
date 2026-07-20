@@ -108,7 +108,7 @@
           >
             <component :is="fileIcon(f.file)" class="w-5 h-5 shrink-0 text-primary" />
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{{ f.file.name }}</p>
+              <p class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate" :title="f.file.name">{{ f.file.name }}</p>
               <p class="text-xs text-slate-400">{{ formatSize(f.file.size) }}</p>
             </div>
             <div class="flex items-center gap-1 shrink-0">

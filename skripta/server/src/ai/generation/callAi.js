@@ -14,17 +14,22 @@ import { estimateTokensFromChars } from "../provider/openrouter.js";
 // a large package (many quiz/flashcard items, full worked solutions) has no
 // ceiling and no detection of truncation; without a timeout, a single hung
 // call can occupy one of the job queue's only concurrency slots
-// indefinitely. Each ceiling is sized to what that specific call actually
-// produces: `full` generates an entire package (every section) in one
-// response and genuinely needs the most room; `chunk` generates only a
-// handful of summary chapters for one piece of source text; `synthesis`
-// generates everything except the summary from an already-compact
-// distilled digest; `section` regenerates exactly one section. Background
-// job queue calls, not blocking HTTP requests, so a long-running call
-// doesn't tie up a client — but meaningfully bounded so one call can't both
-// run long AND have unlimited room to make that worse.
-export const MAX_OUTPUT_TOKENS = { full: 16000, section: 10000, explain: 1536, chat: 2048, image: 2048, chunk: 8000, synthesis: 16000 };
-export const CALL_TIMEOUT_MS = { full: 300000, section: 180000, explain: 30000, chat: 60000, image: 60000, chunk: 240000, synthesis: 240000 };
+// indefinitely. Background job queue calls, not blocking HTTP requests, so
+// a long-running call doesn't tie up a client — but meaningfully bounded so
+// one call can't both run long AND have unlimited room to make that worse.
+//
+// SPEED: `teaching` and `assessment` replace the old monolithic `full`/
+// `synthesis` ceilings (16000 tokens each, generated serially in one
+// response) — fullGeneration.js and chunkedGeneration.js now fire both
+// halves as parallel calls (see their own comments), so each half only
+// needs to cover its own, smaller share of the total content. Token
+// generation is roughly linear in count, so halving the per-call ceiling
+// and running the two calls concurrently cuts real wall-clock time by
+// close to half, not just the ceiling. `chunk` generates only a handful of
+// summary chapters for one piece of source text; `section` regenerates
+// exactly one section.
+export const MAX_OUTPUT_TOKENS = { teaching: 9000, assessment: 9000, section: 8000, explain: 1536, chat: 2048, image: 2048, chunk: 7000 };
+export const CALL_TIMEOUT_MS = { teaching: 120000, assessment: 120000, section: 90000, explain: 30000, chat: 60000, image: 60000, chunk: 120000 };
 
 export function isTruncated(response) {
   return response?.finishReason === "length";

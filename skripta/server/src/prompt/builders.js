@@ -29,6 +29,10 @@ import {
   FIDELITY_AUDIT_RULE,
   NO_REPETITION_RULE,
   STYLE_VARIETY_RULE,
+  PREMIUM_ENRICHMENT_RULE,
+  MATERIAL_CLASSIFICATION_RULE,
+  CODE_PLAYGROUND_RULE,
+  ADAPTIVE_PRACTICE_RULE,
   VALIDATION_RULES,
   OUTPUT_REQUIREMENTS,
 } from "./rules.js";
@@ -38,28 +42,57 @@ import {
   FLASHCARD_WORKED_EXAMPLE,
   PRACTICE_TASK_WORKED_EXAMPLE,
 } from "./examples.js";
-import { FULL_JSON_STRUCTURE, CHUNK_JSON_STRUCTURE, SYNTHESIS_JSON_STRUCTURE } from "./schema.js";
+import {
+  TEACHING_JSON_STRUCTURE_FULL,
+  TEACHING_JSON_STRUCTURE_SYNTHESIS,
+  ASSESSMENT_JSON_STRUCTURE,
+  CHUNK_JSON_STRUCTURE,
+  JSON_FIELD,
+} from "./schema.js";
 
-// --- Full single-call path (small/typical inputs: model reads everything
-// and writes everything in one request) --------------------------------
+// --- Full single-call path (small/typical inputs) -----------------------
+//
+// SPEED: split into two INDEPENDENT calls run in parallel by
+// ai/generation/fullGeneration.js instead of one call producing everything
+// serially — see the comment on TEACHING_JSON_STRUCTURE_FULL in schema.js.
+// TEACHING gets the source transcript + images (it owns "summary", which is
+// the only section that references images); ASSESSMENT gets the same
+// transcript as plain text only, since quiz/flashcards/practice/etc. never
+// reference an image.
 
-export const SYSTEM_PROMPT = [
+export const TEACHING_SYSTEM_PROMPT = [
   AI_ROLE,
-  "Your goal is to transform a raw lecture transcript or presentation slides into a comprehensive, high-fidelity, interactive study package. This package will power a modern student web application, requiring rigorous technical accuracy, pedagogical scaffolding, and perfectly valid JSON formatting.",
+  "Your goal is to transform a raw lecture transcript or presentation slides into the TEACHING half of a comprehensive, high-fidelity study package: the chapter-by-chapter summary, core concepts, study notes, and chatbot grounding context. A separate call handles the quiz/flashcards/practice-task half — do not attempt those here.",
+  MATERIAL_CLASSIFICATION_RULE,
   SUMMARY_RULES,
-  `### RULES\n1. ${ACTIVE_LEARNING_RULE}\n2. ${DEEP_COMPREHENSION_RULE}\n3. ${CHAPTER_LENGTH_RULE}\n4. ${CONTENT_LENGTH_RULE}\n5. ${FIDELITY_AUDIT_RULE}\n6. ${NO_REPETITION_RULE}\n7. ${STYLE_VARIETY_RULE}`,
+  `### RULES\n1. ${ACTIVE_LEARNING_RULE}\n2. ${CHAPTER_LENGTH_RULE}\n3. ${CONTENT_LENGTH_RULE}\n4. ${FIDELITY_AUDIT_RULE}\n5. ${NO_REPETITION_RULE}\n6. ${STYLE_VARIETY_RULE}`,
+  PREMIUM_ENRICHMENT_RULE,
   STUDY_NOTES_RULES,
   CORE_CONCEPTS_RULES,
-  QUIZ_RULES,
-  FLASHCARDS_RULES,
   FORMULA_RULES,
   DIAGRAM_RULES,
+  CODE_PLAYGROUND_RULE,
   LATEX_RULES,
   IMAGE_RULES,
   MARKDOWN_RULES,
   VALIDATION_RULES,
-  `### WORKED EXAMPLES (illustrate the required depth and tone — do not reuse this content; every example below is about an unrelated topic and exists only to calibrate quality)\n\n${CHAPTER_WORKED_EXAMPLE}\n\n${QUIZ_WORKED_EXAMPLE}\n\n${FLASHCARD_WORKED_EXAMPLE}\n\n${PRACTICE_TASK_WORKED_EXAMPLE}`,
-  `### REQUIRED JSON STRUCTURE\n\n${FULL_JSON_STRUCTURE}`,
+  `### WORKED EXAMPLE (illustrates the required depth and tone — do not reuse this content, it is about an unrelated topic)\n\n${CHAPTER_WORKED_EXAMPLE}`,
+  `### REQUIRED JSON STRUCTURE\n\n${TEACHING_JSON_STRUCTURE_FULL}`,
+  OUTPUT_REQUIREMENTS,
+].join("\n\n---\n\n");
+
+export const ASSESSMENT_SYSTEM_PROMPT = [
+  AI_ROLE,
+  "Your goal is to transform a raw lecture transcript or presentation slides into the ASSESSMENT half of a comprehensive, high-fidelity study package: quiz, flashcards, practice tasks, true/false, short answer, glossary, and learning path. A separate call handles the chapter summary/core concepts/study notes half — do not attempt those here, and do not reference any images (this call never receives them).",
+  `### RULES\n1. ${DEEP_COMPREHENSION_RULE}\n2. ${CONTENT_LENGTH_RULE}\n3. ${FIDELITY_AUDIT_RULE}\n4. ${NO_REPETITION_RULE}`,
+  ADAPTIVE_PRACTICE_RULE,
+  QUIZ_RULES,
+  FLASHCARDS_RULES,
+  LATEX_RULES,
+  MARKDOWN_RULES,
+  VALIDATION_RULES,
+  `### WORKED EXAMPLES (calibrate quality — do not reuse this content, it is about an unrelated topic)\n\n${QUIZ_WORKED_EXAMPLE}\n\n${FLASHCARD_WORKED_EXAMPLE}\n\n${PRACTICE_TASK_WORKED_EXAMPLE}`,
+  `### REQUIRED JSON STRUCTURE\n\n${ASSESSMENT_JSON_STRUCTURE}`,
   OUTPUT_REQUIREMENTS,
 ].join("\n\n---\n\n");
 
@@ -104,8 +137,10 @@ const SUMMARY_CHUNK_SYSTEM_PROMPT = [
   `You are given ONE source document (one file out of a larger multi-file upload, or one section of a larger document). Your ONLY job on this call is to produce exhaustive, textbook-quality "summary" chapters for THIS source — nothing else. A separate, later call handles quiz/flashcards/practice tasks/glossary/etc. for the whole course, so do not attempt those here.`,
   SUMMARY_RULES,
   `### RULES\n1. ${CHAPTER_LENGTH_RULE}\n2. ${FIDELITY_AUDIT_RULE}\n3. ${STYLE_VARIETY_RULE}`,
+  PREMIUM_ENRICHMENT_RULE,
   FORMULA_RULES,
   DIAGRAM_RULES,
+  CODE_PLAYGROUND_RULE,
   LATEX_RULES_COMPACT,
   IMAGE_RULES_COMPACT,
   MARKDOWN_RULES_COMPACT,
@@ -134,12 +169,28 @@ export function buildSummaryChunkUserMessage({ video_title, subject, source, ima
   ${source.extracted_text}`;
 }
 
-const SYNTHESIS_SYSTEM_PROMPT = [
+// SPEED: same two-way split as the full path (see TEACHING_SYSTEM_PROMPT
+// above) — the synthesis step runs its TEACHING half and ASSESSMENT half as
+// two parallel calls instead of one call producing everything serially.
+const TEACHING_SYNTHESIS_SYSTEM_PROMPT = [
   AI_ROLE,
-  `You are given a DISTILLED SUMMARY of a full course/lecture — already-written, textbook-quality chapter notes covering every topic in the material (produced by an earlier pass). Your job is to synthesize this into the remaining parts of a study package: metadata, core concepts, study notes, quiz, flashcards, practice tasks, true/false, short answer, glossary, learning path, and chatbot grounding context. Treat the distilled summary below as your authoritative source material — it already contains the extracted problems, formulas, and worked examples you need.`,
-  `### RULES\n1. ${DEEP_COMPREHENSION_RULE}\n2. ${CONTENT_LENGTH_RULE}\n3. ${NO_REPETITION_RULE}`,
+  `You are given a DISTILLED SUMMARY of a full course/lecture — already-written, textbook-quality chapter notes covering every topic in the material (produced by an earlier pass). Your job is to synthesize the TEACHING half of a study package from it: metadata, core concepts, study notes, and chatbot grounding context. A separate call handles the quiz/flashcards/practice-task half — do not attempt those here. Treat the distilled summary below as your authoritative source material — it already contains the extracted problems, formulas, and worked examples you need.`,
+  MATERIAL_CLASSIFICATION_RULE,
+  `### RULES\n1. ${CONTENT_LENGTH_RULE}\n2. ${NO_REPETITION_RULE}`,
   STUDY_NOTES_RULES,
   CORE_CONCEPTS_RULES,
+  LATEX_RULES_COMPACT,
+  MARKDOWN_RULES_COMPACT,
+  VALIDATION_RULES,
+  `### REQUIRED JSON STRUCTURE\n\n${TEACHING_JSON_STRUCTURE_SYNTHESIS}`,
+  OUTPUT_REQUIREMENTS,
+].join("\n\n---\n\n");
+
+const ASSESSMENT_SYNTHESIS_SYSTEM_PROMPT = [
+  AI_ROLE,
+  `You are given a DISTILLED SUMMARY of a full course/lecture — already-written, textbook-quality chapter notes covering every topic in the material (produced by an earlier pass). Your job is to synthesize the ASSESSMENT half of a study package from it: quiz, flashcards, practice tasks, true/false, short answer, glossary, and learning path. A separate call handles the core-concepts/study-notes half — do not attempt those here. Treat the distilled summary below as your authoritative source material — it already contains the extracted problems, formulas, and worked examples you need.`,
+  `### RULES\n1. ${DEEP_COMPREHENSION_RULE}\n2. ${CONTENT_LENGTH_RULE}\n3. ${NO_REPETITION_RULE}`,
+  ADAPTIVE_PRACTICE_RULE,
   QUIZ_RULES,
   FLASHCARDS_RULES,
   FORMULA_RULES,
@@ -147,12 +198,16 @@ const SYNTHESIS_SYSTEM_PROMPT = [
   MARKDOWN_RULES_COMPACT,
   VALIDATION_RULES,
   `### WORKED EXAMPLES (calibrate quality — do not reuse this content, it is about an unrelated topic)\n\n${QUIZ_WORKED_EXAMPLE}\n\n${FLASHCARD_WORKED_EXAMPLE}\n\n${PRACTICE_TASK_WORKED_EXAMPLE}`,
-  `### REQUIRED JSON STRUCTURE\n\n${SYNTHESIS_JSON_STRUCTURE}`,
+  `### REQUIRED JSON STRUCTURE\n\n${ASSESSMENT_JSON_STRUCTURE}`,
   OUTPUT_REQUIREMENTS,
 ].join("\n\n---\n\n");
 
-export function buildSynthesisSystemPrompt() {
-  return SYNTHESIS_SYSTEM_PROMPT;
+export function buildTeachingSynthesisSystemPrompt() {
+  return TEACHING_SYNTHESIS_SYSTEM_PROMPT;
+}
+
+export function buildAssessmentSynthesisSystemPrompt() {
+  return ASSESSMENT_SYNTHESIS_SYSTEM_PROMPT;
 }
 
 // The distilled summary text fed to the synthesis call — chapter titles +
@@ -199,47 +254,57 @@ Multiple source documents were provided below, each marked "=== SOURCE N: filena
 export const REGENERATABLE_SECTIONS = {
   summary: {
     key: "summary",
-    instructions: `Regenerate the summary section using textbook-quality pedagogical scaffolding (Intuition -> Mechanics -> Edge Cases). Extract and completely solve every mathematical problem, slide example, or algorithmic trace present in the transcript. For automata/state machines, include a markdown table and valid Mermaid.js diagram syntax. Use double-escaped LaTeX (\\\\ commands).`,
+    schema: JSON_FIELD.summary_full,
+    instructions: `Regenerate the summary section using textbook-quality pedagogical scaffolding (Intuition -> Mechanics -> Edge Cases). Extract and completely solve every mathematical problem, slide example, or algorithmic trace present in the transcript. For automata/state machines, include a markdown table and valid Mermaid.js diagram syntax. Use double-escaped LaTeX (\\\\ commands). ${PREMIUM_ENRICHMENT_RULE} ${CODE_PLAYGROUND_RULE}`,
   },
   core_concepts: {
     key: "core_concepts",
+    schema: JSON_FIELD.core_concepts,
     instructions: `Regenerate the core concepts — a quick review of the lecture's most essential ideas, focusing on how they act as foundational rules for problem-solving. Return JSON with key "core_concepts".`,
   },
   study_notes: {
     key: "study_notes",
+    schema: JSON_FIELD.study_notes,
     instructions: `Regenerate the study notes. Return JSON with key "study_notes". Highlight common procedural missteps and exam-heavy problem archetypes.`,
   },
   quiz: {
     key: "quiz",
+    schema: JSON_FIELD.quiz,
     instructions: (counts) =>
       `Regenerate the quiz array to contain exactly ${counts.quiz} multiple-choice questions. Ensure a solid portion of the quiz tests mathematical, technical, or state diagram evaluation rather than just vocab matching. Provide clear explanations.`,
   },
   flashcards: {
     key: "flashcards",
+    schema: JSON_FIELD.flashcards,
     instructions: (counts) =>
       `Regenerate exactly ${counts.flashcards} active-recall flashcards. Include procedural flashcards and state/transition queries to reinforce problem-solving.`,
   },
   practice_tasks: {
     key: "practice_tasks",
+    schema: JSON_FIELD.practice_tasks,
     instructions: (counts) =>
-      `Regenerate exactly ${counts.practice} practice tasks. These must be direct computational, analytical, or algorithmic challenges taken or heavily inspired by the tasks in the material, with complete execution traces and structural/Mermaid solutions where applicable.`,
+      `Regenerate exactly ${counts.practice} practice tasks. These must be direct computational, analytical, or algorithmic challenges taken or heavily inspired by the tasks in the material, with complete execution traces and structural/Mermaid solutions where applicable. ${ADAPTIVE_PRACTICE_RULE}`,
   },
   edge_cases_and_limits: {
     key: "edge_cases_and_limits",
+    schema: JSON_FIELD.edge_cases_and_limits,
     instructions: `Regenerate the edge_cases_and_limits section. Focus on parameters, stack limits (PDA), or string inputs that break formulas or automata provided in the practical tasks.`,
   },
   true_false_questions: {
     key: "true_false_questions",
+    schema: JSON_FIELD.true_false_questions,
     instructions: (counts) =>
       `Regenerate the true/false questions. Generate ${counts.trueFalse} items targeting common traps students fall into while setting up calculations or execution steps.`,
   },
   short_answer_questions: {
     key: "short_answer_questions",
+    schema: JSON_FIELD.short_answer_questions,
     instructions: (counts) =>
       `Regenerate the short-answer questions. Generate ${counts.shortAnswer} items requiring students to mathematically or structurally justify a state machine or solution path.`,
   },
   glossary: {
     key: "glossary",
+    schema: JSON_FIELD.glossary,
     instructions: (counts) =>
       `Regenerate the glossary. Return JSON with key "glossary" containing up to ${counts.glossary} operational terms.`,
   },
@@ -258,7 +323,12 @@ export function buildRegenerateSystemPrompt(section, counts, isMultiSource = fal
 
 ${instructions}
 ${multiSourceBlock}
-STRICT OUTPUT FORMAT: the very first character of your response must be \`{\` and the very last must be \`}\`. Return ONLY the raw JSON object containing exactly the top-level key: "${spec.key}". No "Here is..." preface, no explanations, no markdown blocks, no formatting anomalies. Double escape all LaTeX backslashes (\`\\\\\`).`;
+### REQUIRED JSON STRUCTURE
+{
+  ${spec.schema}
+}
+
+STRICT OUTPUT FORMAT: the very first character of your response must be \`{\` and the very last must be \`}\`. Return ONLY the raw JSON object containing exactly the top-level key: "${spec.key}", matching the structure above exactly. No "Here is..." preface, no explanations, no markdown blocks, no formatting anomalies. Double escape all LaTeX backslashes (\`\\\\\`).`;
 }
 
 export function buildRegenerateUserMessage({ video_title, subject, transcript }) {

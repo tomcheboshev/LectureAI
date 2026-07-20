@@ -1,5 +1,6 @@
 <template>
   <div class="flex flex-col gap-3">
+    <EmptyState v-if="!questions || questions.length === 0" :icon="CheckIcon" :title="t('trueFalseQuiz.emptyTitle')" :description="t('trueFalseQuiz.emptyDescription')" />
     <div v-for="(q, i) in questions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
       <p class="font-medium text-base text-slate-900 dark:text-white mb-4 leading-relaxed" v-html="renderLatexText(q.statement)"></p>
       <div class="flex gap-2.5">
@@ -16,8 +17,10 @@
 
 <script setup>
 import { ref } from "vue";
+import { CheckIcon } from "@heroicons/vue/24/outline";
 import { renderLatexText } from "../composables/useLatex.js";
 import { useI18n } from "../composables/useI18n.js";
+import EmptyState from "./ui/EmptyState.vue";
 
 const { t } = useI18n();
 const props = defineProps({ questions: { type: Array, required: true } });

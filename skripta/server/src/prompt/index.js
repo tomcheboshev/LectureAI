@@ -3,11 +3,13 @@
 // counts/rules/examples/schema/builders internally.
 export { suggestedCounts } from "./counts.js";
 export {
-  SYSTEM_PROMPT,
+  TEACHING_SYSTEM_PROMPT,
+  ASSESSMENT_SYSTEM_PROMPT,
   buildUserMessage,
   buildSummaryChunkSystemPrompt,
   buildSummaryChunkUserMessage,
-  buildSynthesisSystemPrompt,
+  buildTeachingSynthesisSystemPrompt,
+  buildAssessmentSynthesisSystemPrompt,
   buildDistilledSummaryText,
   buildSynthesisUserMessage,
   MULTI_SOURCE_INSTRUCTIONS,

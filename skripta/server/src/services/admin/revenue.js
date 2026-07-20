@@ -117,6 +117,7 @@ async function listRefunds() {
   const invoices = await Invoice.find({ refunded: true }).sort({ updatedAt: -1 }).limit(50).populate("owner", "name email").lean();
   return invoices.map((inv) => ({
     invoiceId: inv.stripeInvoiceId,
+    userId: inv.owner?._id || null,
     userName: inv.owner?.name || null,
     userEmail: inv.owner?.email || null,
     amountRefunded: inv.amountRefunded || 0,

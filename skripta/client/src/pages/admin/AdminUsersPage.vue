@@ -32,6 +32,7 @@
     <EmptyState v-else-if="!users.length" :icon="UsersIcon" :title="t('admin.users.emptyTitle')" :description="t('admin.users.emptyBody')" />
 
     <div v-else class="rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark overflow-hidden">
+      <div class="overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="bg-slate-50 dark:bg-white/5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <tr>
@@ -49,19 +50,20 @@
             class="cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition"
             @click="router.push(`/admin/users/${u._id}`)"
           >
-            <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">{{ u.name }}</td>
-            <td class="px-4 py-3 text-slate-500 dark:text-slate-400">{{ u.email }}</td>
-            <td class="px-4 py-3">
+            <td class="px-4 py-3 font-medium text-slate-900 dark:text-white whitespace-nowrap">{{ u.name }}</td>
+            <td class="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ u.email }}</td>
+            <td class="px-4 py-3 whitespace-nowrap">
               <span class="badge" :class="u.plan === 'free' ? 'badge-primary' : 'badge-success'">{{ u.plan }}</span>
             </td>
-            <td class="px-4 py-3">
+            <td class="px-4 py-3 whitespace-nowrap">
               <span class="badge" :class="u.banned ? 'badge-danger' : 'badge-success'">{{ u.banned ? t("admin.users.filterBanned") : t("admin.users.filterActive") }}</span>
               <span v-if="u.role === 'admin'" class="badge badge-primary ml-1">{{ t("admin.nav.badge") }}</span>
             </td>
-            <td class="px-4 py-3 text-slate-500 dark:text-slate-400">{{ formatDate(u.createdAt) }}</td>
+            <td class="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ formatDate(u.createdAt) }}</td>
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <div v-if="total > limit" class="flex items-center justify-between mt-4 text-sm text-slate-500 dark:text-slate-400">

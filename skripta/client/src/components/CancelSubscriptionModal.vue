@@ -2,7 +2,7 @@
   <Teleport to="body">
       <div v-if="open" class="fixed inset-0 z-[95] flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="close"></div>
-        <div class="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div class="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
           <h3 class="font-display font-bold text-lg text-slate-900 dark:text-white mb-1.5">{{ t("settings.billing.cancelModal.title") }}</h3>
           <p class="text-sm text-slate-500 dark:text-slate-400 mb-5">{{ t("settings.billing.cancelModal.subtitle") }}</p>
 

@@ -7,7 +7,14 @@
 // ----------------------------------------------------------------------------
 
 export const CHAPTER_CORE_FIELDS = `"topic_title": "String",
-      "description": "String — Comprehensive, textbook-quality explanation detailing the theoretical foundation, mechanics, and operational rules of this topic.",
+      "key_idea": "String (ONE punchy sentence — the single most important takeaway from this chapter, the thing a student should still remember a week later even if they forget every other detail)",
+      "description": "String — Comprehensive, textbook-quality explanation detailing the theoretical foundation, mechanics, and operational rules of this topic. Bold (**term**) the 3-6 specific keywords a student should recognize and remember from this chapter — not whole sentences.",
+      "easy_explanation": "String (2-3 sentences explaining this topic the way you'd explain it to a curious beginner with zero background in the subject — plain language, everyday words, no jargon, no formulas)",
+      "advanced_explanation": "String or null (2-4 sentences going deeper than \`description\` — nuance, an edge case, or a connection to more advanced material, aimed at a student who already gets the basics and wants more. null only if this topic genuinely has no natural \\"deeper layer\\" to add.)",
+      "real_world_analogy": "String or null (a vivid, concrete real-world comparison that makes the abstract mechanism intuitive. null only if the topic genuinely resists a natural analogy — which should be rare.)",
+      "memory_trick": "String or null (a mnemonic, acronym, rhyme, or vivid mental image that helps recall this chapter's key fact, formula, or sequence. null only if nothing genuinely lends itself to one.)",
+      "common_mistakes": ["String (a specific, real mistake or misconception students make with THIS chapter's material — not a generic warning. 0-3 items; empty array if this chapter has none worth flagging.)"],
+      "exam_tip": "String or null (a specific, actionable tip about how this exact topic tends to be tested — a common question pattern, a trap to avoid, or a technique worth practicing. null if this material isn't typically assessed directly.)",
       "formulas": [
         { "name": "String", "formula": "String (Escaped LaTeX)", "variables": "String", "when_to_use": "String", "example": "String (fully worked, step-by-step numeric computation — not just the final answer)" }
       ],
@@ -16,6 +23,21 @@ export const CHAPTER_CORE_FIELDS = `"topic_title": "String",
         "String (If an automaton/machine is described, provide a markdown transition table AND a clean valid Mermaid.js graph code block wrapped in \`\`\`mermaid so the web app can render it visually)"
       ],
       "code_explained": ["String (Logic, invariants, edge cases, time/space complexity)"],
+      "code_examples": [ /* ONLY for genuinely programming/CS material with real code to walk through, see CODE EXAMPLES rule — empty array [] for every other chapter/subject */
+        {
+          "language": "String (python, java, c, cpp, javascript, csharp, sql, html, ...)",
+          "title": "String (one line — what this snippet does)",
+          "code": "String (the snippet itself, properly indented)",
+          "line_explanations": [
+            { "line": "String (a short quoted line or statement from code)", "explanation": "String" }
+          ],
+          "common_mistakes": ["String"],
+          "time_complexity": "String or null (LaTeX Big-O, e.g. $O(n \\\\log n)$, with a one-clause reason)",
+          "space_complexity": "String or null (same format as time_complexity)",
+          "alternative_solution": "String or null (a genuinely different approach with a one-line tradeoff comparison)",
+          "expected_output": "String or null (exactly what running this code prints/returns)"
+        }
+      ],
       "examples": ["String (Thoroughly worked academic examples or fully decomposed problems from the slides)"],
       "key_points": ["String (Core conceptual takeaways)"],
       "images": [
@@ -26,6 +48,7 @@ export const JSON_FIELD = {
   metadata: `"metadata": {
     "video_title": "String",
     "subject": "String",
+    "material_category": "Programming | Computer Science Theory | Mathematics | Physics | Chemistry | Biology | English | History | Business | Economics | Law | Medicine | Other",
     "estimated_level": "beginner | intermediate | advanced",
     "estimated_duration_minutes": 0,
     "content_type": "lecture | tutorial | explanation | problem_solving | mixed",
@@ -72,7 +95,8 @@ export const JSON_FIELD = {
       "why_it_matters": "String (The structural role this concept plays in the broader subject)",
       "related_concepts": ["String"],
       "common_mistakes": "String (Typical exam trap or cognitive slip when solving tasks)",
-      "example": "String"
+      "example": "String",
+      "memory_trick": "String or null (a mnemonic, acronym, or vivid mental image that anchors this specific term. null only if nothing genuinely fits.)"
     }
   ]`,
 
@@ -157,7 +181,27 @@ export const JSON_FIELD = {
   }`,
 };
 
-export const FULL_JSON_STRUCTURE = `{
+export const CHUNK_JSON_STRUCTURE = `Return ONLY this JSON object — nothing else, no other top-level keys:
+{
+  ${JSON_FIELD.summary_chunk},
+  ${JSON_FIELD.transcription_corrections}
+}`;
+
+// ----------------------------------------------------------------------------
+// SPEED: the full-package and synthesis calls are each split into two
+// INDEPENDENT calls run in parallel (see ai/generation/fullGeneration.js and
+// chunkedGeneration.js) instead of one call producing everything serially.
+// A single request generating ~16k output tokens is slow purely because
+// token generation is roughly linear in count — splitting the same total
+// work into two calls that run concurrently cuts wall-clock time by nearly
+// half without reducing what's generated. TEACHING carries the
+// explanatory/reference content (and, on the full path, the images);
+// ASSESSMENT carries the practice/testing content, which never needs to see
+// embedded images.
+// ----------------------------------------------------------------------------
+
+export const TEACHING_JSON_STRUCTURE_FULL = `Return ONLY this JSON object — nothing else, no other top-level keys:
+{
   ${JSON_FIELD.metadata},
   ${JSON_FIELD.study_scaffolding},
   ${JSON_FIELD.summary_full},
@@ -165,24 +209,11 @@ export const FULL_JSON_STRUCTURE = `{
   ${JSON_FIELD.full_lecture_summary},
   ${JSON_FIELD.core_concepts},
   ${JSON_FIELD.study_notes},
-  ${JSON_FIELD.quiz},
-  ${JSON_FIELD.flashcards},
-  ${JSON_FIELD.practice_tasks},
-  ${JSON_FIELD.true_false_questions},
-  ${JSON_FIELD.short_answer_questions},
-  ${JSON_FIELD.glossary},
-  ${JSON_FIELD.learning_path},
   ${JSON_FIELD.transcription_corrections},
   ${JSON_FIELD.chatbot_context}
 }`;
 
-export const CHUNK_JSON_STRUCTURE = `Return ONLY this JSON object — nothing else, no other top-level keys:
-{
-  ${JSON_FIELD.summary_chunk},
-  ${JSON_FIELD.transcription_corrections}
-}`;
-
-export const SYNTHESIS_JSON_STRUCTURE = `Return ONLY this JSON object:
+export const TEACHING_JSON_STRUCTURE_SYNTHESIS = `Return ONLY this JSON object — nothing else, no other top-level keys:
 {
   ${JSON_FIELD.metadata},
   ${JSON_FIELD.study_scaffolding},
@@ -190,12 +221,16 @@ export const SYNTHESIS_JSON_STRUCTURE = `Return ONLY this JSON object:
   ${JSON_FIELD.full_lecture_summary},
   ${JSON_FIELD.core_concepts},
   ${JSON_FIELD.study_notes},
+  ${JSON_FIELD.chatbot_context}
+}`;
+
+export const ASSESSMENT_JSON_STRUCTURE = `Return ONLY this JSON object — nothing else, no other top-level keys:
+{
   ${JSON_FIELD.quiz},
   ${JSON_FIELD.flashcards},
   ${JSON_FIELD.practice_tasks},
   ${JSON_FIELD.true_false_questions},
   ${JSON_FIELD.short_answer_questions},
   ${JSON_FIELD.glossary},
-  ${JSON_FIELD.learning_path},
-  ${JSON_FIELD.chatbot_context}
+  ${JSON_FIELD.learning_path}
 }`;

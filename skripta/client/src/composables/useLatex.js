@@ -9,7 +9,13 @@ function escapeHtml(str) {
 
 function renderMath(expr, displayMode) {
   try {
-    return katex.renderToString(expr, { throwOnError: false, displayMode, strict: "ignore" });
+    const html = katex.renderToString(expr, { throwOnError: false, displayMode, strict: "ignore" });
+    // KaTeX's own CSS sets `.katex-display > .katex { white-space: nowrap }`
+    // with no horizontal scroll affordance of its own — a wide equation
+    // (long derivation, matrix, multi-term expression) would otherwise
+    // silently push past its container with no way to see the rest. Wrap
+    // display-mode output the same way .rich-table-wrap handles wide tables.
+    return displayMode ? `<div class="katex-display-wrap">${html}</div>` : html;
   } catch {
     return escapeHtml(expr);
   }

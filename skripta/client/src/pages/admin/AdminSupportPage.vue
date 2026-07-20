@@ -25,7 +25,9 @@
         </div>
 
         <div v-if="expanded === ticket._id" class="mt-4 pt-4 border-t border-slate-100 dark:border-border-dark">
-          <p class="text-sm text-slate-600 dark:text-slate-300 mb-4 whitespace-pre-wrap">{{ detail?.body }}</p>
+          <p v-if="!detail" class="text-sm text-slate-400 mb-4">{{ t("admin.users.loading") }}</p>
+          <template v-else>
+          <p class="text-sm text-slate-600 dark:text-slate-300 mb-4 whitespace-pre-wrap">{{ detail.body }}</p>
 
           <div class="flex flex-wrap items-end gap-3 mb-4">
             <div>
@@ -53,9 +55,22 @@
               {{ t("admin.support.addNote") }}
             </button>
           </div>
+          </template>
         </div>
       </li>
     </ul>
+
+    <div v-if="total > limit" class="flex items-center justify-between mt-4 text-sm text-slate-500 dark:text-slate-400">
+      <span>{{ t("admin.users.pageOf", { page, pages: Math.ceil(total / limit) }) }}</span>
+      <div class="flex gap-2">
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-border-dark disabled:opacity-40" :disabled="page <= 1" @click="changePage(page - 1)">
+          {{ t("admin.users.prev") }}
+        </button>
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-border-dark disabled:opacity-40" :disabled="page * limit >= total" @click="changePage(page + 1)">
+          {{ t("admin.users.next") }}
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -72,6 +87,9 @@ const { t, lang } = useI18n();
 const toast = useToastStore();
 
 const tickets = ref([]);
+const total = ref(0);
+const page = ref(1);
+const limit = ref(25);
 const loading = ref(false);
 const statusFilter = ref("");
 const expanded = ref(null);
@@ -92,13 +110,20 @@ function formatDate(d) {
 async function reload() {
   loading.value = true;
   try {
-    const result = await adminApi.listSupportTickets({ status: statusFilter.value });
+    const result = await adminApi.listSupportTickets({ status: statusFilter.value, page: page.value, limit: limit.value });
     tickets.value = result.tickets;
+    total.value = result.total;
+    page.value = result.page;
   } catch (err) {
     reportApiError(err);
   } finally {
     loading.value = false;
   }
+}
+
+function changePage(p) {
+  page.value = p;
+  reload();
 }
 
 async function toggle(id) {
@@ -107,6 +132,10 @@ async function toggle(id) {
     return;
   }
   expanded.value = id;
+  // Cleared immediately (not left holding the PREVIOUS ticket's data) so the
+  // panel shows a loading state instead of momentarily rendering the wrong
+  // ticket's body/notes under this ticket's header while the fetch is in flight.
+  detail.value = null;
   try {
     const { ticket } = await adminApi.getSupportTicket(id);
     detail.value = ticket;
@@ -121,8 +150,13 @@ async function saveStatus(id) {
     await adminApi.updateSupportTicket(id, { status: editStatus.value });
     toast.success(t("admin.support.updated"));
     await reload();
-    await toggle(id);
-    expanded.value = id;
+    // Re-fetch directly rather than going through toggle(id): the panel is
+    // already expanded at this point, so toggle() would just close it
+    // (its "already expanded" branch) and leave `detail` stale instead of
+    // refreshing it.
+    const { ticket } = await adminApi.getSupportTicket(id);
+    detail.value = ticket;
+    editStatus.value = ticket.status;
   } catch (err) {
     reportApiError(err);
   }

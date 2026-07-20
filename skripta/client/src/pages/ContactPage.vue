@@ -18,22 +18,22 @@
       <div v-else class="rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark p-6 space-y-3">
         <div>
           <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{{ t("common.name") }}</label>
-          <input v-model="name" type="text" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-sm" />
+          <input v-model="name" type="text" class="input-field text-sm" />
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{{ t("common.email") }}</label>
-          <input v-model="email" type="email" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-sm" />
+          <input v-model="email" type="email" class="input-field text-sm" />
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{{ t("support.subject") }}</label>
-          <input v-model="subject" type="text" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-sm" />
+          <input v-model="subject" type="text" class="input-field text-sm" />
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{{ t("contact.message") }}</label>
-          <textarea v-model="message" rows="5" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-sm"></textarea>
+          <textarea v-model="message" rows="5" class="input-field text-sm"></textarea>
         </div>
         <div v-if="error" class="text-sm text-danger">{{ error }}</div>
-        <button :disabled="submitting" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary-hover disabled:opacity-40 transition" @click="submit">
+        <button :disabled="submitting" class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-primary hover:bg-primary-hover disabled:opacity-40 transition" @click="submit">
           {{ submitting ? t("support.submitting") : t("contact.send") }}
         </button>
       </div>

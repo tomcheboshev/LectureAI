@@ -705,6 +705,10 @@ export default {
     deleteModal: {
       title: "Delete this study package?",
     },
+    emptySection: {
+      title: "Nothing here yet",
+      description: "This section doesn't have any content. Try regenerating it.",
+    },
     tabs: {
       summary: "Summary",
       concepts: "Core Concepts",
@@ -716,6 +720,7 @@ export default {
       truefalse: "True / False",
       shortanswer: "Short Answer",
       path: "Learning Path",
+      examprep: "Exam Prep",
       chat: "AI Tutor",
     },
     summary: {
@@ -726,6 +731,34 @@ export default {
     formulas: {
       whenToUse: "When to use:",
       example: "Example:",
+    },
+    chapter: {
+      keyIdea: "Key idea",
+      easyExplanation: "Easy explanation",
+      advancedExplanation: "Advanced explanation",
+      realWorldAnalogy: "Real-world analogy",
+      memoryTrick: "Remember this",
+      commonMistakes: "Common mistakes",
+      examTip: "Exam tip",
+    },
+    codeExample: {
+      copy: "Copy",
+      copied: "Copied",
+      edit: "Edit",
+      done: "Done",
+      run: "Run",
+      running: "Running…",
+      output: "Output",
+      explainLines: "Explain Line by Line",
+      alternativeSolution: "Alternative Solution",
+      expectedOutput: "Show Expected Output",
+      timeout: "Stopped: took too long to run.",
+      noOutput: "(no output)",
+    },
+    examPrep: {
+      checklistTitle: "Last-minute revision checklist",
+      checklistSubtitle: "The highest-probability exam points across every chapter — check them off as you review.",
+      formulaSheetTitle: "Formula sheet",
     },
     concepts: {
       whyItMatters: "Why it matters:",
@@ -829,6 +862,8 @@ export default {
     },
   },
   trueFalseQuiz: {
+    emptyTitle: "No true/false questions yet",
+    emptyDescription: "This set doesn't have any true/false questions. Try regenerating this section.",
     true: "True",
     false: "False",
     correct: "Correct",

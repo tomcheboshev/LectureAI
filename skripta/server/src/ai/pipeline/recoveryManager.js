@@ -9,14 +9,24 @@
 // summary still fails the whole generation (matching the chunked
 // generation path's existing "no usable chapters at all" precedent).
 //
-// A genuine quota exhaustion during recovery stops the whole recovery pass
-// immediately (the same abortState short-circuit pattern used by chunked
-// generation) rather than burning further calls against an account already
-// known to be out of quota.
+// SPEED: recovery attempts run CONCURRENTLY (bounded, via the shared
+// runWithConcurrency), not one at a time — when several sections fail
+// validation simultaneously (e.g. an entire half of the teaching/assessment
+// split came back malformed), recovering them serially multiplied wall time
+// by the number of failed sections; running them in parallel keeps recovery
+// roughly as fast as its single slowest section.
+//
+// A genuine quota exhaustion during recovery stops every not-yet-started
+// recovery attempt immediately (the same abortState short-circuit pattern
+// used by chunked generation) rather than burning further calls against an
+// account already known to be out of quota.
 
 import { REGENERATABLE_SECTIONS } from "../../prompt/index.js";
 import { regenerateSectionCore } from "../generation/sectionGeneration.js";
 import { validateSectionValue } from "./packageValidator.js";
+import { runWithConcurrency } from "./concurrency.js";
+
+const RECOVERY_CONCURRENCY = 3;
 
 export async function recoverInvalidSections({ pkg, sections, counts, video_title, subject, transcript, isMultiSource }, ctx = {}) {
   const failedSections = Object.entries(sections)
@@ -29,40 +39,43 @@ export async function recoverInvalidSections({ pkg, sections, counts, video_titl
 
   const abortState = { stopped: false, reason: null };
 
-  for (const section of failedSections) {
+  const outcomes = await runWithConcurrency(failedSections, RECOVERY_CONCURRENCY, async (section) => {
     if (!REGENERATABLE_SECTIONS[section]) {
       console.warn(`[recovery] "${section}" has no regeneration path — leaving at its default value.`);
-      continue;
+      return { section, recovered: false };
     }
-
-    let recovered = false;
     if (abortState.stopped) {
       console.warn(`[recovery] Skipping "${section}" — recovery already aborted (${abortState.reason}).`);
-    } else {
-      try {
-        const { key, value } = await regenerateSectionCore({ section, counts, isMultiSource, video_title, subject, transcript }, ctx);
-        pkg[key] = validateSectionValue(section, value, counts);
-        console.log(`[recovery] "${section}" recovered successfully.`);
-        recovered = true;
-      } catch (err) {
-        console.warn(`[recovery] "${section}" recovery attempt failed: ${err.message}`);
-        if (err.quotaExhausted) {
-          abortState.stopped = true;
-          abortState.reason = err.message;
-        }
-      }
+      return { section, recovered: false };
     }
 
-    if (recovered) continue;
+    try {
+      const { key, value } = await regenerateSectionCore({ section, counts, isMultiSource, video_title, subject, transcript }, ctx);
+      const validated = validateSectionValue(section, value, counts);
+      console.log(`[recovery] "${section}" recovered successfully.`);
+      return { section, recovered: true, key, value: validated };
+    } catch (err) {
+      console.warn(`[recovery] "${section}" recovery attempt failed: ${err.message}`);
+      if (err.quotaExhausted) {
+        abortState.stopped = true;
+        abortState.reason = err.message;
+      }
+      return { section, recovered: false };
+    }
+  });
 
-    if (section === "summary") {
+  for (const outcome of outcomes) {
+    if (outcome.recovered) {
+      pkg[outcome.key] = outcome.value;
+      continue;
+    }
+    if (outcome.section === "summary") {
       throw Object.assign(
         new Error(`Could not generate usable content for this material, even after a recovery attempt${abortState.reason ? `: ${abortState.reason}` : "."}`),
         { userFacing: true }
       );
     }
-
-    console.warn(`[recovery] "${section}" left at its safe default value — generation continues.`);
+    console.warn(`[recovery] "${outcome.section}" left at its safe default value — generation continues.`);
   }
 
   return pkg;

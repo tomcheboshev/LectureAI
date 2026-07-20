@@ -80,20 +80,20 @@
       <h3 class="font-display font-bold mb-1">{{ t("settings.connectedAccounts.title") }}</h3>
       <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t("settings.connectedAccounts.description") }}</p>
       <ul class="flex flex-col gap-2.5">
-        <li v-for="provider in ['google', 'github']" :key="provider" class="flex items-center justify-between rounded-xl border border-slate-200 dark:border-border-dark px-4 py-3">
-          <div>
+        <li v-for="provider in ['google', 'github']" :key="provider" class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-border-dark px-4 py-3">
+          <div class="min-w-0 flex-1">
             <p class="text-sm font-semibold text-slate-800 dark:text-slate-100 capitalize">{{ provider }}</p>
-            <p class="text-xs text-slate-400">{{ connectedAccountEmail(provider) || t("settings.connectedAccounts.notConnected") }}</p>
+            <p class="text-xs text-slate-400 truncate" :title="connectedAccountEmail(provider)">{{ connectedAccountEmail(provider) || t("settings.connectedAccounts.notConnected") }}</p>
           </div>
           <button
             v-if="connectedAccountEmail(provider)"
             :disabled="disconnectingProvider === provider"
-            class="text-xs font-semibold text-danger hover:underline disabled:opacity-40"
+            class="shrink-0 text-xs font-semibold text-danger hover:underline disabled:opacity-40"
             @click="confirmDisconnect(provider)"
           >
             {{ disconnectingProvider === provider ? t("settings.connectedAccounts.disconnecting") : t("settings.connectedAccounts.disconnect") }}
           </button>
-          <a v-else :href="`/api/auth/oauth/${provider}?intent=link`" class="text-xs font-semibold text-primary hover:underline">
+          <a v-else :href="`/api/auth/oauth/${provider}?intent=link`" class="shrink-0 text-xs font-semibold text-primary hover:underline">
             {{ t("settings.connectedAccounts.connect") }}
           </a>
         </li>
@@ -104,6 +104,7 @@
       :open="Boolean(disconnectTarget)"
       :title="t('settings.connectedAccounts.disconnectConfirmTitle')"
       :confirm-label="t('settings.connectedAccounts.disconnect')"
+      :loading="disconnectingProvider === disconnectTarget"
       @close="disconnectTarget = null"
       @confirm="doDisconnect"
     >
@@ -231,15 +232,15 @@
           <li
             v-for="inv in billing.invoices"
             :key="inv._id"
-            class="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm"
+            class="flex items-center flex-wrap justify-between gap-x-3 gap-y-1 rounded-lg bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm"
           >
-            <span class="text-slate-600 dark:text-slate-300">{{ formatDate(inv.createdAt) }}</span>
-            <span class="font-medium text-slate-800 dark:text-slate-100">{{ (inv.amountPaid / 100).toFixed(2) }} {{ inv.currency?.toUpperCase() }}</span>
+            <span class="text-slate-600 dark:text-slate-300 shrink-0">{{ formatDate(inv.createdAt) }}</span>
+            <span class="font-medium text-slate-800 dark:text-slate-100 shrink-0">{{ (inv.amountPaid / 100).toFixed(2) }} {{ inv.currency?.toUpperCase() }}</span>
             <span
-              class="badge"
+              class="badge shrink-0"
               :class="inv.status === 'paid' ? 'badge-success' : inv.status === 'open' ? 'badge-warning' : 'badge-danger'"
             >{{ inv.status }}</span>
-            <a v-if="inv.invoicePdfUrl" :href="inv.invoicePdfUrl" target="_blank" rel="noopener" class="text-primary hover:underline font-medium">{{ t("settings.billing.download") }}</a>
+            <a v-if="inv.invoicePdfUrl" :href="inv.invoicePdfUrl" target="_blank" rel="noopener" class="shrink-0 text-primary hover:underline font-medium">{{ t("settings.billing.download") }}</a>
           </li>
         </ul>
       </div>
@@ -343,6 +344,7 @@
       :open="confirmDeleteOpen"
       :title="t('settings.deleteAccountConfirmTitle')"
       :confirm-label="deleting ? t('settings.deleting') : t('settings.deleteAccount')"
+      :loading="deleting"
       @close="confirmDeleteOpen = false"
       @confirm="doDeleteAccount"
     >

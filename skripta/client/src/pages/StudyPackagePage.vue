@@ -77,6 +77,7 @@
         <p class="text-slate-500 dark:text-slate-400 mt-1 mb-3">{{ pkg.metadata.short_description }}</p>
         <div class="flex flex-wrap gap-1.5">
           <span class="badge badge-primary">{{ pkg.metadata.subject }}</span>
+          <span v-if="pkg.metadata.material_category" class="badge badge-secondary">{{ pkg.metadata.material_category }}</span>
           <span class="badge">{{ pkg.metadata.estimated_level }}</span>
           <span class="badge">{{ pkg.metadata.content_type }}</span>
           <span class="badge">{{ t("studyPackage.header.duration", { minutes: pkg.metadata.estimated_duration_minutes }) }}</span>
@@ -183,7 +184,41 @@
                     </button>
                     <p v-else class="font-mono text-xs text-primary mb-0.5">{{ formatTs(c.timestamp) }}</p>
                     <h4 class="font-display font-bold text-lg text-slate-900 dark:text-white mb-2">{{ c.topic_title }}</h4>
+
+                    <div v-if="c.key_idea" class="callout callout-concept mb-4">
+                      <div class="callout-icon">💡</div>
+                      <div class="callout-body">
+                        <span class="callout-label">{{ t("studyPackage.chapter.keyIdea") }}</span>
+                        <p class="font-semibold" v-html="renderLatexText(c.key_idea)"></p>
+                      </div>
+                    </div>
+
                     <div class="rich-content-block text-base text-slate-700 dark:text-slate-200 leading-loose mb-3" v-html="renderMarkdown(c.description)"></div>
+
+                    <div v-if="c.easy_explanation || c.advanced_explanation" class="grid sm:grid-cols-2 gap-3 mb-4">
+                      <div v-if="c.easy_explanation" class="callout callout-info">
+                        <div class="callout-icon">🌱</div>
+                        <div class="callout-body">
+                          <span class="callout-label">{{ t("studyPackage.chapter.easyExplanation") }}</span>
+                          <p v-html="renderLatexText(c.easy_explanation)"></p>
+                        </div>
+                      </div>
+                      <div v-if="c.advanced_explanation" class="callout callout-definition">
+                        <div class="callout-icon">🎓</div>
+                        <div class="callout-body">
+                          <span class="callout-label">{{ t("studyPackage.chapter.advancedExplanation") }}</span>
+                          <p v-html="renderLatexText(c.advanced_explanation)"></p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div v-if="c.real_world_analogy" class="callout callout-example mb-4">
+                      <div class="callout-icon">🌍</div>
+                      <div class="callout-body">
+                        <span class="callout-label">{{ t("studyPackage.chapter.realWorldAnalogy") }}</span>
+                        <p v-html="renderLatexText(c.real_world_analogy)"></p>
+                      </div>
+                    </div>
 
                     <div v-if="c.images?.length" class="flex flex-col gap-4 mb-4">
                       <figure v-for="(img, ii) in c.images" :key="ii" class="rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
@@ -212,13 +247,44 @@
                       <span class="mr-1">📊</span><RichContent :text="x" />
                     </div>
                     <p v-for="x in c.code_explained" :key="x" class="text-sm font-mono text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">💻 <span v-html="renderLatexText(x)"></span></p>
+
+                    <div v-if="c.code_examples?.length" class="mb-4">
+                      <CodeExample v-for="(ex, exi) in c.code_examples" :key="exi" :example="ex" />
+                    </div>
+
                     <div v-if="c.examples?.length" class="flex flex-col gap-2 mb-3">
                       <p v-for="x in c.examples" :key="x" class="text-sm text-slate-600 dark:text-slate-300 bg-primary/5 rounded-lg px-4 py-3 leading-relaxed"><strong>{{ t("studyPackage.formulas.example") }}</strong> <span v-html="renderLatexText(x)"></span></p>
                     </div>
 
-                    <ul class="list-disc list-inside text-base text-slate-600 dark:text-slate-300 space-y-1.5 leading-relaxed">
+                    <ul class="list-disc list-inside text-base text-slate-600 dark:text-slate-300 space-y-1.5 leading-relaxed mb-4">
                       <li v-for="k in c.key_points" :key="k" v-html="renderLatexText(k)"></li>
                     </ul>
+
+                    <div v-if="c.common_mistakes?.length" class="callout callout-mistake mb-3">
+                      <div class="callout-icon">❌</div>
+                      <div class="callout-body">
+                        <span class="callout-label">{{ t("studyPackage.chapter.commonMistakes") }}</span>
+                        <ul class="list-disc list-inside space-y-1">
+                          <li v-for="x in c.common_mistakes" :key="x" v-html="renderLatexText(x)"></li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div v-if="c.memory_trick" class="callout callout-tip mb-3">
+                      <div class="callout-icon">🧠</div>
+                      <div class="callout-body">
+                        <span class="callout-label">{{ t("studyPackage.chapter.memoryTrick") }}</span>
+                        <p v-html="renderLatexText(c.memory_trick)"></p>
+                      </div>
+                    </div>
+
+                    <div v-if="c.exam_tip" class="callout callout-warning">
+                      <div class="callout-icon">🎯</div>
+                      <div class="callout-body">
+                        <span class="callout-label">{{ t("studyPackage.chapter.examTip") }}</span>
+                        <p v-html="renderLatexText(c.exam_tip)"></p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -230,13 +296,21 @@
             <div class="flex justify-end">
               <RegenerateButton :package-id="pkg._id" section="core_concepts" @regenerated="(d) => (pkg.core_concepts = d.core_concepts)" />
             </div>
-            <div class="grid sm:grid-cols-2 gap-5">
+            <EmptyState v-if="!pkg.core_concepts?.length" :icon="AcademicCapIcon" :title="t('studyPackage.emptySection.title')" :description="t('studyPackage.emptySection.description')" />
+            <div v-else class="grid sm:grid-cols-2 gap-5">
               <div v-for="c in pkg.core_concepts" :key="c.term" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
                 <h3 class="font-display font-bold text-lg text-primary mb-2">{{ c.term }}</h3>
                 <p class="text-base text-slate-700 dark:text-slate-200 mb-3 leading-relaxed" v-html="renderLatexText(c.definition)"></p>
                 <p class="text-sm text-slate-500 dark:text-slate-400 mb-3 leading-relaxed"><strong class="text-slate-600 dark:text-slate-300">{{ t("studyPackage.concepts.whyItMatters") }}</strong> <span v-html="renderLatexText(c.why_it_matters)"></span></p>
                 <p v-if="c.common_mistakes" class="text-sm text-danger/90 mb-3 leading-relaxed"><strong>{{ t("studyPackage.concepts.commonMistake") }}</strong> <span v-html="renderLatexText(c.common_mistakes)"></span></p>
                 <p class="font-mono text-sm bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark rounded-lg px-4 py-3 text-slate-500 dark:text-slate-400 leading-relaxed" v-html="renderLatexText(c.example)"></p>
+                <div v-if="c.memory_trick" class="callout callout-tip mt-3">
+                  <div class="callout-icon">🧠</div>
+                  <div class="callout-body">
+                    <span class="callout-label">{{ t("studyPackage.chapter.memoryTrick") }}</span>
+                    <p v-html="renderLatexText(c.memory_trick)"></p>
+                  </div>
+                </div>
                 <p v-if="c.related_concepts?.length" class="text-sm font-mono text-slate-400 mt-3">{{ t("studyPackage.concepts.related") }} {{ c.related_concepts.join(", ") }}</p>
                 <ConceptExplainer :package-id="pkg._id" :term="c.term" :definition="c.definition" />
               </div>
@@ -248,12 +322,14 @@
             <div class="flex justify-end">
               <RegenerateButton :package-id="pkg._id" section="study_notes" @regenerated="(d) => (pkg.study_notes = d.study_notes)" />
             </div>
+            <EmptyState v-if="!hasNotesContent" :icon="DocumentTextIcon" :title="t('studyPackage.emptySection.title')" :description="t('studyPackage.emptySection.description')" />
+            <template v-else>
             <div class="grid sm:grid-cols-2 gap-5">
-              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+              <div v-if="notes.main_ideas?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
                 <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.notes.mainIdeas") }}</h3>
                 <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="x in notes.main_ideas" :key="x" v-html="renderLatexText(x)"></li></ul>
               </div>
-              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+              <div v-if="notes.important_details?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
                 <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.notes.importantDetails") }}</h3>
                 <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="x in notes.important_details" :key="x" v-html="renderLatexText(x)"></li></ul>
               </div>
@@ -273,15 +349,16 @@
                   <strong class="text-slate-900 dark:text-white">{{ c.concept_a }}</strong> {{ t("studyPackage.notes.vs") }} <strong class="text-slate-900 dark:text-white">{{ c.concept_b }}</strong>: <span v-html="renderLatexText(c.difference)"></span>
                 </p>
               </div>
-              <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+              <div v-if="notes.common_misunderstandings?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
                 <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.notes.commonMistakes") }}</h3>
                 <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="x in notes.common_misunderstandings" :key="x" v-html="renderLatexText(x)"></li></ul>
               </div>
             </div>
-            <div class="rounded-2xl border-2 border-warning/40 bg-warning/5 p-6">
+            <div v-if="notes.exam_focus?.length" class="rounded-2xl border-2 border-warning/40 bg-warning/5 p-6">
               <h3 class="font-display font-bold text-lg mb-3 flex items-center gap-2"><FireIcon class="w-5 h-5 text-warning" /> {{ t("studyPackage.notes.examFocus") }}</h3>
               <ul class="list-disc list-inside text-base space-y-2 text-slate-700 dark:text-slate-200 leading-relaxed"><li v-for="x in notes.exam_focus" :key="x" v-html="renderLatexText(x)"></li></ul>
             </div>
+            </template>
           </div>
 
           <!-- GLOSSARY -->
@@ -293,7 +370,8 @@
               </div>
               <RegenerateButton :package-id="pkg._id" section="glossary" @regenerated="(d) => (pkg.glossary = d.glossary)" />
             </div>
-            <dl class="rounded-2xl border border-slate-200 dark:border-border-dark divide-y divide-slate-100 dark:divide-border-dark">
+            <EmptyState v-if="!pkg.glossary?.length" :icon="QueueListIcon" :title="t('studyPackage.emptySection.title')" :description="t('studyPackage.emptySection.description')" />
+            <dl v-else class="rounded-2xl border border-slate-200 dark:border-border-dark divide-y divide-slate-100 dark:divide-border-dark">
               <div v-for="g in filteredGlossary" :key="g.term" class="px-6 py-4">
                 <dt class="font-display font-bold text-base text-slate-900 dark:text-white">{{ g.term }}</dt>
                 <dd class="text-base text-slate-500 dark:text-slate-400 mt-1 leading-relaxed" v-html="renderLatexText(g.meaning)"></dd>
@@ -323,6 +401,7 @@
             <div class="flex justify-end">
               <RegenerateButton :package-id="pkg._id" section="practice_tasks" @regenerated="(d) => (pkg.practice_tasks = d.practice_tasks)" />
             </div>
+            <EmptyState v-if="!pkg.practice_tasks?.length" :icon="ClipboardDocumentCheckIcon" :title="t('studyPackage.emptySection.title')" :description="t('studyPackage.emptySection.description')" />
             <div v-for="(task, i) in pkg.practice_tasks" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
               <span class="badge mb-3" :class="diffTint(task.difficulty)">{{ task.difficulty }}</span>
               <p class="font-medium text-base text-slate-900 dark:text-white mb-3 leading-relaxed" v-html="renderLatexText(task.task)"></p>
@@ -355,6 +434,7 @@
             <div class="flex justify-end">
               <RegenerateButton :package-id="pkg._id" section="short_answer_questions" @regenerated="(d) => (pkg.short_answer_questions = d.short_answer_questions)" />
             </div>
+            <EmptyState v-if="!pkg.short_answer_questions?.length" :icon="PencilSquareIcon" :title="t('studyPackage.emptySection.title')" :description="t('studyPackage.emptySection.description')" />
             <div v-for="(q, i) in pkg.short_answer_questions" :key="i" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
               <p class="font-medium text-base text-slate-900 dark:text-white mb-3 leading-relaxed" v-html="renderLatexText(q.question)"></p>
               <textarea v-model="shortAnswerDrafts[i]" rows="2" :placeholder="t('studyPackage.shortAnswer.placeholder')" class="w-full rounded-lg border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 mb-3"></textarea>
@@ -371,23 +451,58 @@
           </div>
 
           <!-- LEARNING PATH -->
-          <div v-show="tab === 'path'" class="grid sm:grid-cols-2 gap-5">
-            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6 sm:col-span-2">
-              <h3 class="font-display font-bold text-lg mb-4">{{ t("studyPackage.path.objectives") }}</h3>
-              <ul class="flex flex-col gap-3">
-                <li v-for="o in pkg.learning_objectives" :key="o" class="flex items-start gap-2.5 text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-                  <CheckCircleIcon class="w-5 h-5 text-success shrink-0 mt-0.5" /> <span v-html="renderLatexText(o)"></span>
-                </li>
-              </ul>
+          <div v-show="tab === 'path'">
+            <EmptyState v-if="!hasPathContent" :icon="MapIcon" :title="t('studyPackage.emptySection.title')" :description="t('studyPackage.emptySection.description')" />
+            <div v-else class="grid sm:grid-cols-2 gap-5">
+              <div v-if="pkg.learning_objectives?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6 sm:col-span-2">
+                <h3 class="font-display font-bold text-lg mb-4">{{ t("studyPackage.path.objectives") }}</h3>
+                <ul class="flex flex-col gap-3">
+                  <li v-for="o in pkg.learning_objectives" :key="o" class="flex items-start gap-2.5 text-base text-slate-600 dark:text-slate-300 leading-relaxed">
+                    <CheckCircleIcon class="w-5 h-5 text-success shrink-0 mt-0.5" /> <span v-html="renderLatexText(o)"></span>
+                  </li>
+                </ul>
+              </div>
+              <div v-if="pkg.prerequisites?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+                <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.path.prerequisites") }}</h3>
+                <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="p in pkg.prerequisites" :key="p" v-html="renderLatexText(p)"></li></ul>
+              </div>
+              <div v-if="pkg.recommended_next_steps?.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+                <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.path.nextSteps") }}</h3>
+                <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="n in pkg.recommended_next_steps" :key="n" v-html="renderLatexText(n)"></li></ul>
+              </div>
             </div>
-            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
-              <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.path.prerequisites") }}</h3>
-              <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="p in pkg.prerequisites" :key="p" v-html="renderLatexText(p)"></li></ul>
-            </div>
-            <div class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
-              <h3 class="font-display font-bold text-lg mb-3">{{ t("studyPackage.path.nextSteps") }}</h3>
-              <ul class="list-disc list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 leading-relaxed"><li v-for="n in pkg.recommended_next_steps" :key="n" v-html="renderLatexText(n)"></li></ul>
-            </div>
+          </div>
+
+          <!-- EXAM PREP -->
+          <div v-show="tab === 'examprep'" class="flex flex-col gap-6">
+            <EmptyState v-if="!formulaSheet.length && !revisionChecklist.length" :icon="TrophyIcon" :title="t('studyPackage.emptySection.title')" :description="t('studyPackage.emptySection.description')" />
+            <template v-else>
+              <div v-if="revisionChecklist.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+                <h3 class="font-display font-bold text-lg mb-1 flex items-center gap-2"><TrophyIcon class="w-5 h-5 text-warning" /> {{ t("studyPackage.examPrep.checklistTitle") }}</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t("studyPackage.examPrep.checklistSubtitle") }}</p>
+                <ul class="flex flex-col gap-3">
+                  <li v-for="(item, i) in revisionChecklist" :key="i" class="flex items-start gap-2.5 text-base text-slate-700 dark:text-slate-200 leading-relaxed">
+                    <input type="checkbox" class="mt-1.5 w-4 h-4 rounded border-slate-300 text-primary shrink-0" />
+                    <span>
+                      <span v-html="renderLatexText(item.text)"></span>
+                      <span v-if="item.source" class="text-xs text-slate-400 ml-1.5">— {{ item.source }}</span>
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <div v-if="formulaSheet.length" class="rounded-2xl border border-slate-200 dark:border-border-dark p-6">
+                <h3 class="font-display font-bold text-lg mb-4">{{ t("studyPackage.examPrep.formulaSheetTitle") }}</h3>
+                <div class="grid sm:grid-cols-2 gap-3">
+                  <div v-for="(f, i) in formulaSheet" :key="i" class="rounded-xl bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark p-4">
+                    <p class="text-xs font-semibold text-slate-400 mb-1">{{ f.chapterTitle }}</p>
+                    <p class="text-sm font-semibold text-slate-500 dark:text-slate-400">{{ f.name }}</p>
+                    <div class="text-lg text-slate-900 dark:text-white my-1.5" v-html="renderBlockFormula(f.formula)"></div>
+                    <p v-if="f.when_to_use" class="text-xs text-slate-500 dark:text-slate-400" v-html="renderLatexText(f.when_to_use)"></p>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
 
           <!-- CHAT -->
@@ -418,6 +533,7 @@ import {
   QueueListIcon, QuestionMarkCircleIcon, Squares2X2Icon, ClipboardDocumentCheckIcon,
   CheckIcon, PencilSquareIcon, MapIcon, ChatBubbleLeftRightIcon,
   VideoCameraIcon, DocumentIcon, SparklesIcon, ExclamationTriangleIcon, ArrowPathIcon,
+  TrophyIcon,
 } from "@heroicons/vue/24/outline";
 import { api } from "../services/api.js";
 import { useToastStore } from "../stores/toast.js";
@@ -435,7 +551,9 @@ import ConceptExplainer from "../components/ConceptExplainer.vue";
 import RegenerateButton from "../components/RegenerateButton.vue";
 import YouTubePlayer from "../components/YouTubePlayer.vue";
 import RichContent from "../components/RichContent.vue";
+import CodeExample from "../components/CodeExample.vue";
 import Modal from "../components/ui/Modal.vue";
+import EmptyState from "../components/ui/EmptyState.vue";
 
 const props = defineProps({ id: { type: String, required: true } });
 const router = useRouter();
@@ -470,8 +588,35 @@ const tabs = [
   { id: "truefalse", labelKey: "studyPackage.tabs.truefalse", icon: CheckIcon },
   { id: "shortanswer", labelKey: "studyPackage.tabs.shortanswer", icon: PencilSquareIcon },
   { id: "path", labelKey: "studyPackage.tabs.path", icon: MapIcon },
+  { id: "examprep", labelKey: "studyPackage.tabs.examprep", icon: TrophyIcon },
   { id: "chat", labelKey: "studyPackage.tabs.chat", icon: ChatBubbleLeftRightIcon },
 ];
+
+// Exam Prep tab is entirely derived client-side from data the package
+// already has (chapter formulas + exam_tip, study_notes.exam_focus) — no
+// extra AI call, no new backend section, stays fast per the "don't generate
+// unnecessary sections" requirement while still giving every package a
+// last-minute revision view.
+const formulaSheet = computed(() => {
+  const list = [];
+  for (const c of pkg.value?.summary || []) {
+    for (const f of c.formulas || []) {
+      if (f?.formula) list.push({ ...f, chapterTitle: c.topic_title });
+    }
+  }
+  return list;
+});
+
+const revisionChecklist = computed(() => {
+  const items = [];
+  for (const c of pkg.value?.summary || []) {
+    if (c.exam_tip) items.push({ text: c.exam_tip, source: c.topic_title });
+  }
+  for (const x of pkg.value?.study_notes?.exam_focus || []) {
+    items.push({ text: x, source: null });
+  }
+  return items;
+});
 
 const youtubePlayer = ref(null);
 const youtubeVideoId = computed(() => {
@@ -511,6 +656,16 @@ function toggleGroup(title) {
 }
 
 const notes = computed(() => pkg.value?.study_notes || {});
+const hasNotesContent = computed(() => {
+  const n = notes.value;
+  return Boolean(
+    n.main_ideas?.length || n.important_details?.length || n.formulas_or_rules?.length ||
+    n.processes_or_steps?.length || n.comparisons?.length || n.common_misunderstandings?.length || n.exam_focus?.length
+  );
+});
+const hasPathContent = computed(() =>
+  Boolean(pkg.value?.learning_objectives?.length || pkg.value?.prerequisites?.length || pkg.value?.recommended_next_steps?.length)
+);
 const filteredGlossary = computed(() => {
   const list = [...(pkg.value?.glossary || [])].sort((a, b) => a.term.localeCompare(b.term));
   const q = glossaryQuery.value.trim().toLowerCase();

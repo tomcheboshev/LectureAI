@@ -21,7 +21,7 @@
             <p class="text-sm font-medium text-slate-900 dark:text-white">{{ msg.subject }}</p>
             <p class="text-xs text-slate-400">{{ msg.name }} ({{ msg.email }}) · {{ formatDate(msg.createdAt) }}</p>
           </div>
-          <span class="badge" :class="msg.status === 'new' ? 'badge-primary' : 'badge-success'">{{ t(`admin.contact.status.${msg.status}`) }}</span>
+          <span class="badge" :class="statusBadge(msg.status)">{{ t(`admin.contact.status.${msg.status}`) }}</span>
         </div>
 
         <div v-if="expanded === msg._id" class="mt-4 pt-4 border-t border-slate-100 dark:border-border-dark">
@@ -41,6 +41,18 @@
         </div>
       </li>
     </ul>
+
+    <div v-if="total > limit" class="flex items-center justify-between mt-4 text-sm text-slate-500 dark:text-slate-400">
+      <span>{{ t("admin.users.pageOf", { page, pages: Math.ceil(total / limit) }) }}</span>
+      <div class="flex gap-2">
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-border-dark disabled:opacity-40" :disabled="page <= 1" @click="changePage(page - 1)">
+          {{ t("admin.users.prev") }}
+        </button>
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-border-dark disabled:opacity-40" :disabled="page * limit >= total" @click="changePage(page + 1)">
+          {{ t("admin.users.next") }}
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -57,6 +69,9 @@ const { t, lang } = useI18n();
 const toast = useToastStore();
 
 const messages = ref([]);
+const total = ref(0);
+const page = ref(1);
+const limit = ref(25);
 const loading = ref(false);
 const statusFilter = ref("");
 const expanded = ref(null);
@@ -66,16 +81,30 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString(lang.value, { day: "numeric", month: "short", year: "numeric" });
 }
 
+function statusBadge(status) {
+  if (status === "responded") return "badge-success";
+  if (status === "read") return "badge-primary";
+  if (status === "archived") return "badge";
+  return "badge-warning"; // new
+}
+
 async function reload() {
   loading.value = true;
   try {
-    const result = await adminApi.listContactMessages({ status: statusFilter.value });
+    const result = await adminApi.listContactMessages({ status: statusFilter.value, page: page.value, limit: limit.value });
     messages.value = result.messages;
+    total.value = result.total;
+    page.value = result.page;
   } catch (err) {
     reportApiError(err);
   } finally {
     loading.value = false;
   }
+}
+
+function changePage(p) {
+  page.value = p;
+  reload();
 }
 
 function toggle(msg) {

@@ -11,8 +11,7 @@
 // instead of re-implementing the same retry/error logic.
 // ============================================================================
 
-const BASE_URL = "https://openrouter.ai/api/v1";
-
+const BASE_URL = process.env.OPENROUTER_BASE_URL;
 const API_KEY = process.env.OPENROUTER_API_KEY;
 
 // Deliberately NOT "openrouter/free" — that id is OpenRouter's auto-router,
