@@ -215,13 +215,12 @@
                     </div>
 
                     <div v-if="c.formulas?.length" class="flex flex-col gap-3 mb-4">
-                      <div v-for="(f, fi) in c.formulas" :key="fi" class="rounded-xl bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark p-4">
-                        <p class="text-sm font-semibold text-slate-500 dark:text-slate-400">{{ f.name }}</p>
+                      <InfoCard v-for="(f, fi) in c.formulas" :key="fi" variant="definition" icon="📐" :title="f.name">
                         <div class="text-lg text-slate-900 dark:text-white my-2" v-html="renderBlockFormula(f.formula)"></div>
                         <p class="text-sm text-slate-500 dark:text-slate-400" v-html="renderLatexText(f.variables)"></p>
                         <p class="text-sm text-slate-500 dark:text-slate-400 mt-1.5"><strong>{{ t("studyPackage.formulas.whenToUse") }}</strong> <span v-html="renderLatexText(f.when_to_use)"></span></p>
                         <p v-if="f.example" class="text-sm text-slate-500 dark:text-slate-400 mt-1.5"><strong>{{ t("studyPackage.formulas.example") }}</strong> <span v-html="renderLatexText(f.example)"></span></p>
-                      </div>
+                      </InfoCard>
                     </div>
 
                     <ul v-if="c.algorithms_or_processes?.length" class="list-decimal list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 mb-3 leading-relaxed">
