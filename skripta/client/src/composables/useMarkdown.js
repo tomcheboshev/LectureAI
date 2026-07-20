@@ -66,7 +66,7 @@ export function highlightCode(lang, code) {
 // gracefully to a plain code block if a renderer that doesn't know about it
 // ever sees it. Colors (applied in style.css) follow one consistent
 // convention across the whole app: blue=definitions, green=concepts,
-// purple=examples, red=mistakes, orange=warnings, amber=tips, gray=info.
+// cyan=examples, red=mistakes, orange=warnings, amber=tips, gray=info.
 const CALLOUT_TYPES = {
   definition: { emoji: "📘", labelKey: "definition" },
   concept: { emoji: "💡", labelKey: "concept" },

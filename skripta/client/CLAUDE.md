@@ -112,13 +112,14 @@ rules when touching it:
   is only populated for genuinely programming/CS content. The frontend must render conditionally
   (`v-if="c.code_examples?.length"`, etc.) and never assume a field is present. A History package having no
   code playground and no formula sheet tab content is correct behavior, not a bug.
-- **The callout system** (`style.css`, `.callout` + 7 semantic variants) is the primary way secondary
+- **The callout system** (`style.css`, `.callout` + 8 semantic variants) is the primary way secondary
   information is visually separated from body prose: `definition` (blue), `concept` (green), `example`
-  (purple), `mistake` (red), `warning` (orange), `tip` (amber), `info` (gray). These are parsed out of
-  AI-generated Markdown by `useMarkdown.js` (fenced code blocks tagged with the type name, e.g.
-  ` ```tip `) as well as used directly in the Vue template for dedicated chapter fields (`key_idea`,
-  `common_mistakes`, `memory_trick`, `exam_tip`, etc.). Reuse this system for any new "highlighted box"
-  UI — don't invent a new box style.
+  (cyan), `mistake` (red), `warning` (orange), `tip` (amber), `exam` (purple), `info` (gray). These are
+  parsed out of AI-generated Markdown by `useMarkdown.js` (fenced code blocks tagged with the type name,
+  e.g. ` ```tip `) as well as used directly in the Vue template for dedicated chapter fields (`key_idea`,
+  `common_mistakes`, `memory_trick`, `exam_tip`, etc.). Render these boxes via the shared
+  `client/src/components/ui/InfoCard.vue` component rather than hand-rolling a `<div class="callout
+  callout-*">` block. Reuse this system for any new "highlighted box" UI — don't invent a new box style.
 - **Math**: KaTeX via `useLatex.js` (`renderLatexText`/`renderBlockFormula`) — inline `$...$` and display
   `$$...$$` only; block formulas are wrapped in `.katex-display-wrap` for horizontal scroll on overflow,
   never left to overflow the page.
