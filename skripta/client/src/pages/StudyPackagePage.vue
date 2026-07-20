@@ -204,16 +204,6 @@
                       <p v-html="renderLatexText(c.real_world_analogy)"></p>
                     </InfoCard>
 
-                    <div v-if="c.images?.length" class="flex flex-col gap-4 mb-4">
-                      <figure v-for="(img, ii) in c.images" :key="ii" class="rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
-                        <img :src="img.data" :alt="img.caption" class="w-full max-h-96 object-contain bg-slate-50 dark:bg-white/5" loading="lazy" />
-                        <figcaption class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-                          <p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">{{ img.caption }}</p>
-                          <p class="leading-relaxed" v-html="renderLatexText(img.explanation)"></p>
-                        </figcaption>
-                      </figure>
-                    </div>
-
                     <div v-if="c.formulas?.length" class="flex flex-col gap-3 mb-4">
                       <InfoCard v-for="(f, fi) in c.formulas" :key="fi" variant="definition" icon="📐" :title="f.name">
                         <div class="text-lg text-slate-900 dark:text-white my-2" v-html="renderBlockFormula(f.formula)"></div>
@@ -226,9 +216,6 @@
                     <ul v-if="c.algorithms_or_processes?.length" class="list-decimal list-inside text-base space-y-2 text-slate-600 dark:text-slate-300 mb-3 leading-relaxed">
                       <li v-for="x in c.algorithms_or_processes" :key="x" v-html="renderLatexText(x)"></li>
                     </ul>
-                    <div v-for="x in c.diagrams_or_tables_explained" :key="x" class="text-sm text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
-                      <span class="mr-1">📊</span><RichContent :text="x" />
-                    </div>
                     <p v-for="x in c.code_explained" :key="x" class="text-sm font-mono text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">💻 <span v-html="renderLatexText(x)"></span></p>
 
                     <div v-if="c.code_examples?.length" class="mb-4">
@@ -237,6 +224,20 @@
 
                     <div v-if="c.examples?.length" class="flex flex-col gap-2 mb-3">
                       <p v-for="x in c.examples" :key="x" class="text-sm text-slate-600 dark:text-slate-300 bg-primary/5 rounded-lg px-4 py-3 leading-relaxed"><strong>{{ t("studyPackage.formulas.example") }}</strong> <span v-html="renderLatexText(x)"></span></p>
+                    </div>
+
+                    <div v-if="c.images?.length" class="flex flex-col gap-4 mb-4">
+                      <figure v-for="(img, ii) in c.images" :key="ii" class="rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
+                        <img :src="img.data" :alt="img.caption" class="w-full max-h-96 object-contain bg-slate-50 dark:bg-white/5" loading="lazy" />
+                        <figcaption class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                          <p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">{{ img.caption }}</p>
+                          <p class="leading-relaxed" v-html="renderLatexText(img.explanation)"></p>
+                        </figcaption>
+                      </figure>
+                    </div>
+
+                    <div v-for="x in c.diagrams_or_tables_explained" :key="x" class="text-sm text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
+                      <span class="mr-1">📊</span><RichContent :text="x" />
                     </div>
 
                     <ul class="list-disc list-inside text-base text-slate-600 dark:text-slate-300 space-y-1.5 leading-relaxed mb-4">
