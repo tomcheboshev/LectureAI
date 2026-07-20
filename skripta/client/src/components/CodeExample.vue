@@ -45,15 +45,11 @@
         </div>
       </div>
 
-      <div v-if="example.common_mistakes?.length" class="callout callout-mistake">
-        <div class="callout-icon">❌</div>
-        <div class="callout-body">
-          <span class="callout-label">{{ t("studyPackage.chapter.commonMistakes") }}</span>
-          <ul class="list-disc list-inside space-y-1">
-            <li v-for="x in example.common_mistakes" :key="x" v-html="renderLatexText(x)"></li>
-          </ul>
-        </div>
-      </div>
+      <InfoCard v-if="example.common_mistakes?.length" variant="mistake" icon="❌" :title="t('studyPackage.chapter.commonMistakes')">
+        <ul class="list-disc list-inside space-y-1">
+          <li v-for="x in example.common_mistakes" :key="x" v-html="renderLatexText(x)"></li>
+        </ul>
+      </InfoCard>
 
       <button v-if="example.alternative_solution" type="button" class="disclosure-btn" @click="showAlt = !showAlt">
         <span class="disclosure-caret" :class="{ 'rotate-90': showAlt }">▸</span>{{ t("studyPackage.codeExample.alternativeSolution") }}
@@ -75,6 +71,7 @@ import { useI18n } from "../composables/useI18n.js";
 import { useToastStore } from "../stores/toast.js";
 import { highlightCode } from "../composables/useMarkdown.js";
 import { renderLatexText } from "../composables/useLatex.js";
+import InfoCard from "./ui/InfoCard.vue";
 
 const props = defineProps({
   example: { type: Object, required: true },
