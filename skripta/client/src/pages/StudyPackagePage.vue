@@ -185,40 +185,24 @@
                     <p v-else class="font-mono text-xs text-primary mb-0.5">{{ formatTs(c.timestamp) }}</p>
                     <h4 class="font-display font-bold text-lg text-slate-900 dark:text-white mb-2">{{ c.topic_title }}</h4>
 
-                    <div v-if="c.key_idea" class="callout callout-concept mb-4">
-                      <div class="callout-icon">💡</div>
-                      <div class="callout-body">
-                        <span class="callout-label">{{ t("studyPackage.chapter.keyIdea") }}</span>
-                        <p class="font-semibold" v-html="renderLatexText(c.key_idea)"></p>
-                      </div>
-                    </div>
+                    <InfoCard v-if="c.key_idea" variant="concept" icon="💡" :title="t('studyPackage.chapter.keyIdea')" class="mb-4">
+                      <p class="font-semibold" v-html="renderLatexText(c.key_idea)"></p>
+                    </InfoCard>
 
                     <div class="rich-content-block text-base text-slate-700 dark:text-slate-200 leading-loose mb-3" v-html="renderMarkdown(c.description)"></div>
 
                     <div v-if="c.easy_explanation || c.advanced_explanation" class="grid sm:grid-cols-2 gap-3 mb-4">
-                      <div v-if="c.easy_explanation" class="callout callout-info">
-                        <div class="callout-icon">🌱</div>
-                        <div class="callout-body">
-                          <span class="callout-label">{{ t("studyPackage.chapter.easyExplanation") }}</span>
-                          <p v-html="renderLatexText(c.easy_explanation)"></p>
-                        </div>
-                      </div>
-                      <div v-if="c.advanced_explanation" class="callout callout-definition">
-                        <div class="callout-icon">🎓</div>
-                        <div class="callout-body">
-                          <span class="callout-label">{{ t("studyPackage.chapter.advancedExplanation") }}</span>
-                          <p v-html="renderLatexText(c.advanced_explanation)"></p>
-                        </div>
-                      </div>
+                      <InfoCard v-if="c.easy_explanation" variant="info" icon="🌱" :title="t('studyPackage.chapter.easyExplanation')">
+                        <p v-html="renderLatexText(c.easy_explanation)"></p>
+                      </InfoCard>
+                      <InfoCard v-if="c.advanced_explanation" variant="definition" icon="🎓" :title="t('studyPackage.chapter.advancedExplanation')">
+                        <p v-html="renderLatexText(c.advanced_explanation)"></p>
+                      </InfoCard>
                     </div>
 
-                    <div v-if="c.real_world_analogy" class="callout callout-example mb-4">
-                      <div class="callout-icon">🌍</div>
-                      <div class="callout-body">
-                        <span class="callout-label">{{ t("studyPackage.chapter.realWorldAnalogy") }}</span>
-                        <p v-html="renderLatexText(c.real_world_analogy)"></p>
-                      </div>
-                    </div>
+                    <InfoCard v-if="c.real_world_analogy" variant="example" icon="🌍" :title="t('studyPackage.chapter.realWorldAnalogy')" class="mb-4">
+                      <p v-html="renderLatexText(c.real_world_analogy)"></p>
+                    </InfoCard>
 
                     <div v-if="c.images?.length" class="flex flex-col gap-4 mb-4">
                       <figure v-for="(img, ii) in c.images" :key="ii" class="rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
@@ -260,31 +244,19 @@
                       <li v-for="k in c.key_points" :key="k" v-html="renderLatexText(k)"></li>
                     </ul>
 
-                    <div v-if="c.common_mistakes?.length" class="callout callout-mistake mb-3">
-                      <div class="callout-icon">❌</div>
-                      <div class="callout-body">
-                        <span class="callout-label">{{ t("studyPackage.chapter.commonMistakes") }}</span>
-                        <ul class="list-disc list-inside space-y-1">
-                          <li v-for="x in c.common_mistakes" :key="x" v-html="renderLatexText(x)"></li>
-                        </ul>
-                      </div>
-                    </div>
+                    <InfoCard v-if="c.common_mistakes?.length" variant="mistake" icon="❌" :title="t('studyPackage.chapter.commonMistakes')" class="mb-3">
+                      <ul class="list-disc list-inside space-y-1">
+                        <li v-for="x in c.common_mistakes" :key="x" v-html="renderLatexText(x)"></li>
+                      </ul>
+                    </InfoCard>
 
-                    <div v-if="c.memory_trick" class="callout callout-tip mb-3">
-                      <div class="callout-icon">🧠</div>
-                      <div class="callout-body">
-                        <span class="callout-label">{{ t("studyPackage.chapter.memoryTrick") }}</span>
-                        <p v-html="renderLatexText(c.memory_trick)"></p>
-                      </div>
-                    </div>
+                    <InfoCard v-if="c.memory_trick" variant="tip" icon="🧠" :title="t('studyPackage.chapter.memoryTrick')" class="mb-3">
+                      <p v-html="renderLatexText(c.memory_trick)"></p>
+                    </InfoCard>
 
-                    <div v-if="c.exam_tip" class="callout callout-warning">
-                      <div class="callout-icon">🎯</div>
-                      <div class="callout-body">
-                        <span class="callout-label">{{ t("studyPackage.chapter.examTip") }}</span>
-                        <p v-html="renderLatexText(c.exam_tip)"></p>
-                      </div>
-                    </div>
+                    <InfoCard v-if="c.exam_tip" variant="exam" icon="🎯" :title="t('studyPackage.chapter.examTip')">
+                      <p v-html="renderLatexText(c.exam_tip)"></p>
+                    </InfoCard>
                   </div>
                 </div>
               </div>
@@ -304,13 +276,9 @@
                 <p class="text-sm text-slate-500 dark:text-slate-400 mb-3 leading-relaxed"><strong class="text-slate-600 dark:text-slate-300">{{ t("studyPackage.concepts.whyItMatters") }}</strong> <span v-html="renderLatexText(c.why_it_matters)"></span></p>
                 <p v-if="c.common_mistakes" class="text-sm text-danger/90 mb-3 leading-relaxed"><strong>{{ t("studyPackage.concepts.commonMistake") }}</strong> <span v-html="renderLatexText(c.common_mistakes)"></span></p>
                 <p class="font-mono text-sm bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-border-dark rounded-lg px-4 py-3 text-slate-500 dark:text-slate-400 leading-relaxed" v-html="renderLatexText(c.example)"></p>
-                <div v-if="c.memory_trick" class="callout callout-tip mt-3">
-                  <div class="callout-icon">🧠</div>
-                  <div class="callout-body">
-                    <span class="callout-label">{{ t("studyPackage.chapter.memoryTrick") }}</span>
-                    <p v-html="renderLatexText(c.memory_trick)"></p>
-                  </div>
-                </div>
+                <InfoCard v-if="c.memory_trick" variant="tip" icon="🧠" :title="t('studyPackage.chapter.memoryTrick')" class="mt-3">
+                  <p v-html="renderLatexText(c.memory_trick)"></p>
+                </InfoCard>
                 <p v-if="c.related_concepts?.length" class="text-sm font-mono text-slate-400 mt-3">{{ t("studyPackage.concepts.related") }} {{ c.related_concepts.join(", ") }}</p>
                 <ConceptExplainer :package-id="pkg._id" :term="c.term" :definition="c.definition" />
               </div>
@@ -554,6 +522,7 @@ import RichContent from "../components/RichContent.vue";
 import CodeExample from "../components/CodeExample.vue";
 import Modal from "../components/ui/Modal.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
+import InfoCard from "../components/ui/InfoCard.vue";
 
 const props = defineProps({ id: { type: String, required: true } });
 const router = useRouter();
